@@ -72,8 +72,16 @@
 </head>
 <body>
 
-<h1>Dashboard ROI - Pauta Meta Ads x Kommo</h1>
-<p class="subtitle">El Gran Emporio de la Chapa &middot; Pipeline "Embudo de ventas" &middot; Filtrable por fecha de creación del lead</p>
+<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+  <div>
+    <h1>Dashboard ROI - Pauta Meta Ads x Kommo</h1>
+    <p class="subtitle">El Gran Emporio de la Chapa &middot; Pipeline "Embudo de ventas" &middot; Filtrable por fecha de creación del lead</p>
+  </div>
+  <div style="text-align:right;">
+    <button id="refreshNowBtn" style="background:var(--blue); border:none; color:#fff; border-radius:6px; padding:8px 16px; font-size:13px; cursor:pointer; font-weight:600;">Actualizar ahora</button>
+    <div class="range-label" id="refreshStatus" style="margin-top:6px;"></div>
+  </div>
+</div>
 
 <div class="filter-bar">
   <div>
@@ -800,6 +808,36 @@ document.getElementById('savePanelConfig').addEventListener('click', () => {
 });
 
 renderAdControl();
+
+// --- Botón "Actualizar ahora" (dispara el workflow de GitHub vía el mismo Worker) ---
+document.getElementById('refreshNowBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('refreshNowBtn');
+  const statusEl = document.getElementById('refreshStatus');
+  const { url, pin } = loadPanelConfig();
+  if (!url || !pin) {
+    statusEl.textContent = 'Falta cargar la URL del panel y el PIN (sección "Control de anuncios", más abajo) y guardar.';
+    return;
+  }
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Actualizando...';
+  statusEl.textContent = 'Pidiendo datos nuevos a Kommo/Meta/Google (tarda 1-2 minutos)...';
+  try {
+    const res = await fetch(url.replace(/\/$/, '') + '/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    statusEl.textContent = 'Listo, se disparó la actualización. En 1-2 minutos recargá esta página para ver los datos nuevos.';
+  } catch (e) {
+    statusEl.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
 
 render();
 </script>
