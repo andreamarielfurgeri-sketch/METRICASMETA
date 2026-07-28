@@ -27,16 +27,22 @@ jobs:
           KOMMO_TOKEN: ${{ secrets.KOMMO_TOKEN }}
         run: node scripts/fetch_kommo.js
 
-      - name: Traer gasto de Meta y Google Ads (Windsor.ai)
+      - name: Traer gasto de Meta (Graph API)
         env:
-          WINDSOR_API_KEY: ${{ secrets.WINDSOR_API_KEY }}
-        run: node scripts/fetch_windsor.js
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_AD_ACCOUNT_ID: ${{ secrets.META_AD_ACCOUNT_ID }}
+        run: node scripts/fetch_meta_insights.js
 
       - name: Traer estado real de campañas/anuncios (Meta Graph API)
         env:
           META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
           META_AD_ACCOUNT_ID: ${{ secrets.META_AD_ACCOUNT_ID }}
         run: node scripts/fetch_meta_ads_meta.js
+
+      - name: Traer gasto de Google Ads (Windsor.ai)
+        env:
+          WINDSOR_API_KEY: ${{ secrets.WINDSOR_API_KEY }}
+        run: node scripts/fetch_windsor.js
 
       - name: Armar docs/index.html
         run: node scripts/build_dashboard.js
