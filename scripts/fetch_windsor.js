@@ -26,7 +26,12 @@ const DATE_TO = new Date().toISOString().slice(0, 10);
 
 async function windsorGet(connector, fields) {
   const url = `https://connectors.windsor.ai/${connector}?api_key=${API_KEY}&date_from=${DATE_FROM}&date_to=${DATE_TO}&fields=${fields.join(',')}`;
-  const res = await fetch(url);
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; DashboardEmporioChapa/1.0; +https://github.com)',
+      Accept: 'application/json',
+    },
+  });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Windsor.ai ${connector} ${res.status}: ${body.slice(0, 500)}`);
