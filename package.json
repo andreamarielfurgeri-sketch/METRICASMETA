@@ -2,11 +2,18 @@
   "name": "dashboard-emporio-chapa",
   "private": true,
   "description": "Genera solo el dashboard de ROI Meta Ads x Kommo de El Gran Emporio de la Chapa",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "fetch:kommo": "node scripts/fetch_kommo.js",
     "fetch:windsor": "node scripts/fetch_windsor.js",
     "fetch:meta-meta": "node scripts/fetch_meta_ads_meta.js",
-    "build": "node scripts/build_dashboard.js"
+    "build": "node scripts/build_dashboard.js",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.114.0"
   }
 }
