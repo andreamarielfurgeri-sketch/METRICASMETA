@@ -63,6 +63,36 @@ Action te va a decir cuál de los 5 secrets está mal.
 Una vez probado, no hay que tocar nada más: el cron corre solo todos los días
 a las 6am (hora Argentina).
 
+## Paso 4b — Si preferís Netlify en vez de GitHub Pages
+
+El repo también sirve tal cual para Netlify (conectado directo al repo de
+GitHub, deploy automático en cada commit). Configuración necesaria en Netlify:
+
+- **Project configuration → Build & deploy → Continuous deployment →
+  Configure**: dejar "Build command" vacío y poner "Publish directory" en
+  `docs`. Sin esto Netlify busca `index.html` en la raíz del repo y no lo
+  encuentra (da 404).
+
+### Usuario y contraseña para el dashboard (gratis)
+
+Netlify trae protección por contraseña incorporada, pero solo en el plan Pro
+(u$s20/mes). Como alternativa gratis, el repo incluye una Netlify Edge
+Function (`netlify/edge-functions/basic-auth.js`) que pide usuario y
+contraseña antes de mostrar cualquier página del sitio.
+
+Para activarla:
+
+1. En Netlify: **Project configuration → Environment variables → Add a
+   variable**.
+2. Agregá `DASH_USER` (el usuario que van a tipear) y `DASH_PASS` (la
+   contraseña).
+3. Volvé a desplegar el sitio (Deploys → Trigger deploy → Deploy site), o
+   esperá al próximo commit automático del dashboard.
+
+Mientras esas dos variables no estén cargadas, el sitio queda abierto sin
+pedir nada (para no romperlo mientras se configura). Si en algún momento
+querés sacar la protección, borrá esas dos variables en Netlify.
+
 ## Paso 5 — Panel de pausar/activar anuncios (Cloudflare Worker)
 
 Esto es opcional pero ya viene armado si lo querés activar:
@@ -129,4 +159,7 @@ scripts/
 cloudflare-worker/
   worker.js            # backend chiquito que pausa/activa anuncios de verdad
   wrangler.toml
+netlify/edge-functions/
+  basic-auth.js        # pide usuario/contraseña si se publica con Netlify (opcional, gratis)
+netlify.toml           # le dice a Netlify dónde está la edge function
 ```
