@@ -1,0 +1,8 @@
+name = "emporio-chapa-ad-toggle"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Los valores reales de META_SYSTEM_USER_TOKEN y PANEL_PIN NO van acá.
+# Se cargan como secrets con:
+#   npx wrangler secret put META_SYSTEM_USER_TOKEN
+#   npx wrangler secret put PANEL_PIN
