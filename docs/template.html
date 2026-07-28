@@ -68,6 +68,18 @@
   .table-wrap{overflow-x:auto;}
   footer{margin-top:40px; padding-top:16px; border-top:1px solid var(--border); font-size:12px; color:var(--text3);}
   .empty{padding:20px; text-align:center; color:var(--text3); font-size:13px;}
+  .accion-cell{white-space:nowrap;}
+  .toggle-row{display:flex; align-items:center; gap:8px; margin:3px 0;}
+  .toggle-row:first-child{margin-top:0;}
+  .toggle-row:last-child{margin-bottom:0;}
+  .toggle-row .toggle-campaign-label{font-size:11px; color:var(--text3); max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .ad-toggle{position:relative; display:inline-block; width:38px; height:20px; flex:none; cursor:pointer;}
+  .ad-toggle input{opacity:0; width:0; height:0;}
+  .ad-toggle .slider{position:absolute; inset:0; background:var(--card2); border:1px solid var(--border); border-radius:20px; transition:.15s;}
+  .ad-toggle .slider::before{content:""; position:absolute; height:14px; width:14px; left:2px; top:2px; background:var(--text2); border-radius:50%; transition:.15s;}
+  .ad-toggle input:checked + .slider{background:rgba(27,169,122,.25); border-color:var(--green);}
+  .ad-toggle input:checked + .slider::before{transform:translateX(18px); background:var(--green);}
+  .ad-toggle input:disabled + .slider{opacity:.5; cursor:not-allowed;}
 </style>
 </head>
 <body>
@@ -217,6 +229,16 @@
       <option value="pausada">Solo pausados / sin actividad reciente</option>
     </select>
   </div>
+  <div>
+    <label for="workerUrl">URL del panel</label>
+    <input type="text" id="workerUrl" placeholder="https://tu-worker.workers.dev" style="width:220px;">
+  </div>
+  <div>
+    <label for="pinInput">PIN</label>
+    <input type="password" id="pinInput" placeholder="····" style="width:70px;">
+  </div>
+  <button id="savePanelConfig">Guardar en este navegador</button>
+  <span class="range-label" id="panelStatus"></span>
 </div>
 <div class="table-wrap">
   <table id="adTable">
@@ -234,12 +256,13 @@
         <th class="num">Costo x resultado</th>
         <th class="num">Costo x venta</th>
         <th class="num">ROI</th>
+        <th>Pausar/Activar</th>
       </tr>
     </thead>
     <tbody id="adTableBody"></tbody>
   </table>
 </div>
-<p class="note">Esta tabla usa el campo <code>utm_content</code> de cada lead (que Meta llena con el nombre del anuncio, no de la campaña) cruzado contra gasto/resultados de Meta por <code>ad_name</code>. Responde al mismo selector de fecha que el resto del dashboard. Solo se muestran anuncios con al menos un lead cotizado en el rango elegido.</p>
+<p class="note">Esta tabla usa el campo <code>utm_content</code> de cada lead (que Meta llena con el nombre del anuncio, no de la campaña) cruzado contra gasto/resultados de Meta por <code>ad_name</code>. Responde al mismo selector de fecha que el resto del dashboard. Solo se muestran anuncios con al menos un lead cotizado en el rango elegido. La perilla de la última columna pausa o activa el anuncio de verdad en Meta Ads Manager (no es una simulación) — para que funcione, cargá arriba la URL del panel y el PIN y guardalos en este navegador. Si un anuncio corrió en más de una campaña, aparece una perilla por cada una.</p>
 
 <h2>Fuente de tráfico (Meta vs sin UTM, en el rango)</h2>
 <div class="table-wrap">
@@ -286,27 +309,6 @@
   </div>
 </div>
 <p class="note">Todavía no podemos cruzar Google Ads con Kommo como sí hacemos con Meta. El 18/07/2026 corregimos el "Final URL suffix" de las dos campañas ("Campaign TechoCompleto Publico General" y "C MAX REN - TECHO COMPLETO") para que agregue <code>utm_source=google&utm_medium=cpc&utm_campaign={{campaignid}}</code> a los clics nuevos, pero los leads que ya están en Kommo se generaron antes de ese cambio y no tienen ese tag (no es retroactivo). De los leads históricos, solo 26 tienen un <code>gclid</code> (el ID de clic que Google añade automáticamente) y ninguno tiene <code>utm_source=google</code> cargado. Hay una revisión automática programada todos los lunes que va a avisar cuando se acumule suficiente data nueva de Google para sumar una sección real de ROI, igual que la de Meta. Los números de arriba son el gasto y las conversiones que reporta Google Ads por su cuenta, no están conectados (todavía) a lo que pasa después en Kommo.</p>
-
-<h2>Control de anuncios (pausar / activar en Meta)</h2>
-<div class="filter-bar" style="margin-bottom:10px;">
-  <div>
-    <label for="workerUrl">URL del panel</label>
-    <input type="text" id="workerUrl" placeholder="https://tu-worker.workers.dev" style="width:260px;">
-  </div>
-  <div>
-    <label for="pinInput">PIN</label>
-    <input type="password" id="pinInput" placeholder="····" style="width:80px;">
-  </div>
-  <button id="savePanelConfig">Guardar en este navegador</button>
-  <span class="range-label" id="panelStatus"></span>
-</div>
-<div class="table-wrap">
-  <table id="adControlTable">
-    <thead><tr><th>Anuncio</th><th>Campaña</th><th>Estado en Meta</th><th>Acción</th></tr></thead>
-    <tbody id="adControlTableBody"></tbody>
-  </table>
-</div>
-<p class="note">Esto pausa o activa el anuncio de verdad en Meta Ads Manager (no es una simulación). La URL del panel y el PIN se guardan solo en este navegador, nunca en el archivo del dashboard. Si no los tenés, pedíselos a quien configuró el panel. El estado de esta tabla es el que tenía Meta en el último refresh diario, no en tiempo real.</p>
 
 <footer>
   Fuente: Kommo API (pipeline "Embudo de ventas"), Meta Ads y Google Ads (Windsor.ai, cuenta "El Gran Emporio de la Chapa"). Se actualiza solo todos los días a las 6am (hora Argentina) vía GitHub Actions. Última actualización: <span id="lastUpdated">__LAST_UPDATED__</span>.
@@ -534,7 +536,7 @@ function render() {
   const adBody = document.getElementById('adTableBody');
   adBody.innerHTML = '';
   if (adList.length === 0) {
-    adBody.innerHTML = '<tr><td colspan="12" class="empty">No hay leads con anuncio identificado en este rango de fechas</td></tr>';
+    adBody.innerHTML = '<tr><td colspan="13" class="empty">No hay leads con anuncio identificado en este rango de fechas</td></tr>';
   }
   adList.forEach(a => {
     const leadsTotal = a.cc;
@@ -555,9 +557,11 @@ function render() {
       '<td class="num">' + (a.spend>0 ? fmtMoney(a.spend) : '<span class="muted">s/d</span>') + '</td>' +
       '<td class="num">' + (costoResultado!=null ? fmtMoney(costoResultado) : '<span class="muted">s/d</span>') + '</td>' +
       '<td class="num">' + (costoVenta!=null ? fmtMoney(costoVenta) : '<span class="muted">s/d</span>') + '</td>' +
-      '<td class="num">' + (roi!=null ? ('<span class="'+(roi>=0?'pos':'neg')+'">'+(roi>=0?'+':'')+fmtPct(roi)+'</span>') : '<span class="muted">s/d</span>') + '</td>';
+      '<td class="num">' + (roi!=null ? ('<span class="'+(roi>=0?'pos':'neg')+'">'+(roi>=0?'+':'')+fmtPct(roi)+'</span>') : '<span class="muted">s/d</span>') + '</td>' +
+      '<td class="accion-cell">' + buildAdActionCell(a.name) + '</td>';
     adBody.appendChild(tr);
   });
+  wireAdToggles(adBody);
 
   const srcBody = document.getElementById('sourceTableBody');
   srcBody.innerHTML = '';
@@ -728,7 +732,7 @@ document.querySelectorAll('.quick button').forEach(btn => {
   });
 });
 
-// --- Panel de control de anuncios (pausar/activar en Meta) ---
+// --- Pausar/activar anuncios de Meta (perilla dentro de la tabla de ROI por anuncio) ---
 function loadPanelConfig() {
   return {
     url: localStorage.getItem('dashPanelUrl') || '',
@@ -736,46 +740,42 @@ function loadPanelConfig() {
   };
 }
 
-function renderAdControl() {
+function initPanelConfigInputs() {
   const cfg = loadPanelConfig();
   document.getElementById('workerUrl').value = cfg.url;
   document.getElementById('pinInput').value = cfg.pin;
+}
 
-  const tbody = document.getElementById('adControlTableBody');
-  tbody.innerHTML = '';
-  const list = (typeof AD_ID_MAP !== 'undefined' ? AD_ID_MAP : []).slice()
-    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
-  if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty">Sin datos de anuncios de Meta (falta correr fetch_meta_ads_meta.js)</td></tr>';
-    return;
-  }
-  list.forEach((ad) => {
-    const tr = document.createElement('tr');
-    tr.dataset.adId = ad.id;
+function buildAdActionCell(adName) {
+  const entries = (typeof AD_ID_MAP !== 'undefined' ? AD_ID_MAP : []).filter((ad) => ad.name === adName);
+  if (entries.length === 0) return '<span class="muted">s/d</span>';
+  return entries.map((ad) => {
     const isActive = ad.status === 'ACTIVE';
-    tr.innerHTML =
-      '<td>' + ad.name + '</td>' +
-      '<td>' + (ad.campaign_name || '<span class="muted">s/d</span>') + '</td>' +
-      '<td class="ad-status-cell">' + (isActive
-        ? '<span class="badge" style="background:rgba(60,157,92,.15); color:#3c9d5c;">Activo</span>'
-        : '<span class="badge" style="background:rgba(184,76,60,.15); color:#b84c3c;">' + ad.status + '</span>') + '</td>' +
-      '<td><button class="toggle-ad-btn" data-action="' + (isActive ? 'pause' : 'activate') + '">' +
-        (isActive ? 'Pausar' : 'Activar') + '</button></td>';
-    tbody.appendChild(tr);
-  });
+    const label = (entries.length > 1 && ad.campaign_name)
+      ? '<span class="toggle-campaign-label" title="' + ad.campaign_name + '">' + ad.campaign_name + '</span>'
+      : '';
+    return '<div class="toggle-row" data-ad-id="' + ad.id + '">' +
+      '<label class="ad-toggle"><input type="checkbox" ' + (isActive ? 'checked' : '') + '><span class="slider"></span></label>' +
+      label +
+      '</div>';
+  }).join('');
+}
 
-  tbody.querySelectorAll('.toggle-ad-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const tr = btn.closest('tr');
-      const adId = tr.dataset.adId;
-      const action = btn.dataset.action;
+function wireAdToggles(container) {
+  container.querySelectorAll('.ad-toggle input').forEach((input) => {
+    input.addEventListener('change', async () => {
+      const row = input.closest('.toggle-row');
+      const adId = row.dataset.adId;
+      const goingActive = input.checked;
+      const action = goingActive ? 'activate' : 'pause';
       const { url, pin } = loadPanelConfig();
       const statusEl = document.getElementById('panelStatus');
       if (!url || !pin) {
         statusEl.textContent = 'Falta cargar la URL del panel y el PIN (arriba) y guardar.';
+        input.checked = !goingActive;
         return;
       }
-      btn.disabled = true;
+      input.disabled = true;
       statusEl.textContent = 'Enviando...';
       try {
         const res = await fetch(url.replace(/\/$/, '') + '/toggle', {
@@ -785,17 +785,13 @@ function renderAdControl() {
         });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
-        statusEl.textContent = 'Listo: ' + tr.children[0].textContent + ' -> ' + data.status;
-        const nowActive = data.status === 'ACTIVE';
-        tr.querySelector('.ad-status-cell').innerHTML = nowActive
-          ? '<span class="badge" style="background:rgba(60,157,92,.15); color:#3c9d5c;">Activo</span>'
-          : '<span class="badge" style="background:rgba(184,76,60,.15); color:#b84c3c;">' + data.status + '</span>';
-        btn.dataset.action = nowActive ? 'pause' : 'activate';
-        btn.textContent = nowActive ? 'Pausar' : 'Activar';
+        statusEl.textContent = 'Listo: ' + adId + ' -> ' + data.status;
+        input.checked = data.status === 'ACTIVE';
       } catch (e) {
         statusEl.textContent = 'Error: ' + e.message;
+        input.checked = !goingActive;
       } finally {
-        btn.disabled = false;
+        input.disabled = false;
       }
     });
   });
@@ -807,7 +803,7 @@ document.getElementById('savePanelConfig').addEventListener('click', () => {
   document.getElementById('panelStatus').textContent = 'Guardado en este navegador.';
 });
 
-renderAdControl();
+initPanelConfigInputs();
 
 // --- Botón "Actualizar ahora" (dispara el workflow de GitHub vía el mismo Worker) ---
 document.getElementById('refreshNowBtn').addEventListener('click', async () => {
