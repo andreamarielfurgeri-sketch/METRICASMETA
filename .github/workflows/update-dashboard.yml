@@ -1,0 +1,50 @@
+name: Actualizar dashboard
+
+on:
+  schedule:
+    # 09:00 UTC = 06:00 hora Argentina (UTC-3), todo el año (Argentina no tiene horario de verano)
+    - cron: '0 9 * * *'
+  workflow_dispatch: {} # permite tocar "Run workflow" a mano desde la pestaña Actions
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repo
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Traer leads de Kommo
+        env:
+          KOMMO_SUBDOMAIN: ${{ secrets.KOMMO_SUBDOMAIN }}
+          KOMMO_TOKEN: ${{ secrets.KOMMO_TOKEN }}
+        run: node scripts/fetch_kommo.js
+
+      - name: Traer gasto de Meta y Google Ads (Windsor.ai)
+        env:
+          WINDSOR_API_KEY: ${{ secrets.WINDSOR_API_KEY }}
+        run: node scripts/fetch_windsor.js
+
+      - name: Traer estado real de campañas/anuncios (Meta Graph API)
+        env:
+          META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_AD_ACCOUNT_ID: ${{ secrets.META_AD_ACCOUNT_ID }}
+        run: node scripts/fetch_meta_ads_meta.js
+
+      - name: Armar docs/index.html
+        run: node scripts/build_dashboard.js
+
+      - name: Commitear el dashboard actualizado
+        run: |
+          git config user.name "dashboard-bot"
+          git config user.email "dashboard-bot@users.noreply.github.com"
+          git add docs/index.html
+          git diff --staged --quiet && echo "Sin cambios, no hay nada que commitear" || git commit -m "Actualización automática del dashboard $(date -u +%Y-%m-%d)"
+          git push
