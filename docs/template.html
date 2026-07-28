@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard ROI Meta Ads x Kommo - Emporio de la Chapa</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root{
+    --bg:#0f1420; --card:#161d2e; --card2:#1c2438; --border:#2a3550;
+    --text:#e8ecf5; --text2:#9aa5bf; --text3:#6b7594;
+    --blue:#3987e5; --green:#1ba97a; --amber:#eda100; --red:#e34948; --purple:#8b7ce8;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:32px; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  h1{font-size:22px; font-weight:600; margin:0 0 4px;}
+  .subtitle{color:var(--text2); font-size:13px; margin:0 0 20px;}
+  h2{font-size:16px; font-weight:600; margin:36px 0 14px; padding-top:20px; border-top:1px solid var(--border);}
+  h2:first-of-type{border-top:none; padding-top:0;}
+  .filter-bar{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--card); border:1px solid var(--border); border-radius:10px;
+    padding:14px 18px; margin-bottom:24px;
+  }
+  .filter-bar label{font-size:12px; color:var(--text2); margin-right:6px;}
+  .filter-bar input[type=date]{
+    background:var(--card2); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:6px 10px; font-size:13px;
+  }
+  .filter-bar button{
+    background:var(--card2); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:6px 12px; font-size:12px; cursor:pointer;
+  }
+  .filter-bar button:hover{border-color:var(--blue);}
+  .filter-bar .quick{display:flex; gap:6px; flex-wrap:wrap;}
+  .filter-bar .range-label{font-size:12px; color:var(--text3); margin-left:auto;}
+  .kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px;}
+  .kpi{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 18px;}
+  .kpi .label{font-size:12px; color:var(--text2); margin-bottom:6px;}
+  .kpi .value{font-size:24px; font-weight:600;}
+  .kpi .sub{font-size:12px; color:var(--text3); margin-top:4px;}
+  .kpi.blue .value{color:var(--blue);}
+  .kpi.green .value{color:var(--green);}
+  .kpi.amber .value{color:var(--amber);}
+  .kpi.red .value{color:var(--red);}
+  .grid2{display:grid; grid-template-columns:1.3fr 1fr; gap:20px;}
+  @media (max-width:900px){.grid2{grid-template-columns:1fr;}}
+  .chart-box{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px; position:relative;}
+  table{width:100%; border-collapse:collapse; font-size:13px; background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden;}
+  thead th{text-align:left; padding:10px 12px; background:var(--card2); color:var(--text2); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.03em; border-bottom:1px solid var(--border); cursor:pointer; user-select:none; white-space:nowrap;}
+  thead th:hover{color:var(--text);}
+  thead th .sort-arrow{margin-left:4px; opacity:.4; font-size:10px;}
+  thead th.sorted .sort-arrow{opacity:1; color:var(--blue);}
+  tbody td{padding:10px 12px; border-bottom:1px solid var(--border);}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--card2);}
+  .num{text-align:right; font-variant-numeric:tabular-nums;}
+  .pos{color:var(--green); font-weight:600;}
+  .neg{color:var(--red); font-weight:600;}
+  .muted{color:var(--text3);}
+  .badge{display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600;}
+  .badge.meta{background:rgba(57,135,229,.15); color:var(--blue);}
+  .badge.sin{background:rgba(107,117,148,.2); color:var(--text2);}
+  .note{font-size:12px; color:var(--text3); margin-top:10px; line-height:1.5;}
+  .table-wrap{overflow-x:auto;}
+  footer{margin-top:40px; padding-top:16px; border-top:1px solid var(--border); font-size:12px; color:var(--text3);}
+  .empty{padding:20px; text-align:center; color:var(--text3); font-size:13px;}
+</style>
+</head>
+<body>
+
+<h1>Dashboard ROI - Pauta Meta Ads x Kommo</h1>
+<p class="subtitle">El Gran Emporio de la Chapa &middot; Pipeline "Embudo de ventas" &middot; Filtrable por fecha de creación del lead</p>
+
+<div class="filter-bar">
+  <div>
+    <label for="dateFrom">Desde</label>
+    <input type="date" id="dateFrom">
+  </div>
+  <div>
+    <label for="dateTo">Hasta</label>
+    <input type="date" id="dateTo">
+  </div>
+  <div class="quick">
+    <button data-range="7">Últimos 7 días</button>
+    <button data-range="30">Últimos 30 días</button>
+    <button data-range="90">Últimos 90 días</button>
+    <button data-range="all">Todo el período</button>
+  </div>
+  <div class="range-label" id="rangeLabel"></div>
+</div>
+
+<h2>Resumen general (todos los leads en el rango)</h2>
+<div class="kpi-grid">
+  <div class="kpi blue">
+    <div class="label">Total cotizado</div>
+    <div class="value" id="kpi-cotizado-total"></div>
+    <div class="sub" id="kpi-cotizado-total-count"></div>
+  </div>
+  <div class="kpi green">
+    <div class="label">Total vendido</div>
+    <div class="value" id="kpi-vendido-total"></div>
+    <div class="sub" id="kpi-vendido-total-count"></div>
+  </div>
+  <div class="kpi amber">
+    <div class="label">Tasa de cierre global</div>
+    <div class="value" id="kpi-cierre-total"></div>
+    <div class="sub">Ventas / total de leads</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Total de leads (en el rango)</div>
+    <div class="value" id="kpi-leads-total"></div>
+    <div class="sub">Embudo de ventas, todas las fuentes</div>
+  </div>
+</div>
+
+<p style="font-size:13px; color:#666; max-width:900px;">
+  Nota: el 20/07/2026 se corrigieron 34 leads que ya habían sido facturados en Tango pero seguían en Kommo en estados
+  como Derivado, Seguimiento o Cerrado-perdido — se pasaron a "Venta" con el monto real facturado. De esos 34, 9 tenían
+  utm_source = meta (+$6.529.434) y ya están incluidos en las cifras de "Meta Ads" y en la tabla por campaña más abajo.
+  Quedan además 172 clientes de Tango cuyo teléfono no coincide con ningún contacto de Kommo, y 268 sin teléfono
+  cargado en el padrón — esos no se pudieron verificar y no están incluidos en ningún número de este dashboard.
+</p>
+
+<h2>Meta Ads (leads con utm_source = meta/facebook, en el rango)</h2>
+<div class="kpi-grid">
+  <div class="kpi blue">
+    <div class="label">Cotizado (Meta)</div>
+    <div class="value" id="kpi-cotizado-meta"></div>
+    <div class="sub" id="kpi-cotizado-meta-count"></div>
+  </div>
+  <div class="kpi green">
+    <div class="label">Vendido (Meta)</div>
+    <div class="value" id="kpi-vendido-meta"></div>
+    <div class="sub" id="kpi-vendido-meta-count"></div>
+  </div>
+  <div class="kpi amber">
+    <div class="label">Tasa de cierre (Meta)</div>
+    <div class="value" id="kpi-cierre-meta"></div>
+    <div class="sub">Ventas / leads de Meta</div>
+  </div>
+  <div class="kpi red">
+    <div class="label">Gasto en Meta Ads (en el rango)</div>
+    <div class="value" id="kpi-gasto-meta"></div>
+    <div class="sub" id="kpi-roi-meta"></div>
+  </div>
+</div>
+<p class="note" id="metaSpendNote"></p>
+
+<h2>Embudo por etapa (cotizado vs vendido, en el rango)</h2>
+<div class="grid2">
+  <div class="chart-box">
+    <div style="position:relative; height:280px;">
+      <canvas id="stageChart" role="img" aria-label="Gráfico de barras del monto cotizado y vendido por etapa del embudo">Derivado, Seguimiento, Seguimiento a cerrar, Otros y Venta con sus montos.</canvas>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table id="stageTable">
+      <thead><tr><th>Etapa</th><th class="num">Leads</th><th class="num">Monto</th></tr></thead>
+      <tbody id="stageTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<h2>Rendimiento por campaña de Meta (en el rango)</h2>
+<div class="filter-bar" style="margin-bottom:10px;">
+  <div>
+    <label for="campaignStatusFilter">Estado en Meta</label>
+    <select id="campaignStatusFilter">
+      <option value="todas">Todas</option>
+      <option value="activa">Solo activas</option>
+      <option value="pausada">Solo pausadas / sin actividad reciente</option>
+    </select>
+  </div>
+</div>
+<div class="table-wrap">
+  <table id="campaignTable">
+    <thead>
+      <tr>
+        <th>Campaña</th>
+        <th>Estado</th>
+        <th class="num">Leads cotiz.</th>
+        <th class="num">Monto cotizado</th>
+        <th class="num">Leads vend.</th>
+        <th class="num">Monto vendido</th>
+        <th class="num">Tasa cierre</th>
+        <th class="num">Gasto Meta</th>
+        <th class="num">Costo x resultado</th>
+        <th class="num">Costo x venta</th>
+        <th class="num">ROI</th>
+      </tr>
+    </thead>
+    <tbody id="campaignTableBody"></tbody>
+  </table>
+</div>
+<p class="note">"Resultados" = conversaciones de mensajería iniciadas reportadas por Meta para esa campaña. El gasto de Meta solo cubre desde el 20/03/2026 (inicio de datos diarios disponibles); campañas activas solo antes de esa fecha muestran gasto "s/d" si el rango seleccionado no se solapa con su actividad.</p>
+<p class="note"><strong>Sobre "nombre_campaña":</strong> encontramos 7 anuncios en Meta con la plantilla de UTM rota (texto literal "nombre_campaña" en vez de la variable dinámica {{campaign.name}}). Esos 152 leads ya fueron reasignados día por día a su campaña real (ANDY - CAMPAÑA VIEJA 2025, VENTAS | WA | KOMMO o CAMPAÑA SIN VARELA) usando la proporción de resultados que reportó cada campaña ese mismo día. Es una estimación proporcional, no una asignación lead-por-lead exacta, porque Kommo no guarda el ID del anuncio. También hay 12 anuncios más con `url_tags` vacío (sin ningún UTM), cuyo tráfico cae en "(sin utm)" sin forma de rastrearlo.</p>
+
+<h2>Rendimiento por anuncio de Meta (utm_content, en el rango)</h2>
+<div class="filter-bar" style="margin-bottom:10px;">
+  <div>
+    <label for="adStatusFilter">Estado en Meta</label>
+    <select id="adStatusFilter">
+      <option value="todas">Todas</option>
+      <option value="activa">Solo activos</option>
+      <option value="pausada">Solo pausados / sin actividad reciente</option>
+    </select>
+  </div>
+</div>
+<div class="table-wrap">
+  <table id="adTable">
+    <thead>
+      <tr>
+        <th>Anuncio</th>
+        <th>Estado</th>
+        <th>Campaña</th>
+        <th class="num">Leads cotiz.</th>
+        <th class="num">Monto cotizado</th>
+        <th class="num">Leads vend.</th>
+        <th class="num">Monto vendido</th>
+        <th class="num">Tasa cierre</th>
+        <th class="num">Gasto Meta</th>
+        <th class="num">Costo x resultado</th>
+        <th class="num">Costo x venta</th>
+        <th class="num">ROI</th>
+      </tr>
+    </thead>
+    <tbody id="adTableBody"></tbody>
+  </table>
+</div>
+<p class="note">Esta tabla usa el campo <code>utm_content</code> de cada lead (que Meta llena con el nombre del anuncio, no de la campaña) cruzado contra gasto/resultados de Meta por <code>ad_name</code>. Responde al mismo selector de fecha que el resto del dashboard. Solo se muestran anuncios con al menos un lead cotizado en el rango elegido.</p>
+
+<h2>Fuente de tráfico (Meta vs sin UTM, en el rango)</h2>
+<div class="table-wrap">
+  <table id="sourceTable">
+    <thead><tr><th>Fuente</th><th class="num">Leads cotiz.</th><th class="num">Monto cotizado</th><th class="num">Leads vend.</th><th class="num">Monto vendido</th><th class="num">Tasa cierre</th></tr></thead>
+    <tbody id="sourceTableBody"></tbody>
+  </table>
+</div>
+
+<h2>Rendimiento por responsable (aproximado por mes, en el rango)</h2>
+<div class="table-wrap">
+  <table id="userTable">
+    <thead><tr><th>Responsable</th><th class="num">Leads cotiz.</th><th class="num">Monto cotizado</th><th class="num">Leads vend.</th><th class="num">Monto vendido</th><th class="num">Tasa cierre</th></tr></thead>
+    <tbody id="userTableBody"></tbody>
+  </table>
+</div>
+<p class="note">La tabla por responsable se calcula a nivel mensual (no diario): si el rango elegido incluye cualquier parte de un mes, ese mes completo se incluye en el cálculo.</p>
+
+<h2>Conversion por vendedor - solo leads de anuncios (utm_content, en el rango)</h2>
+<div class="table-wrap">
+  <table id="vendorAdTable">
+    <thead><tr><th>Vendedor</th><th class="num">Leads cotiz.</th><th class="num">Monto cotizado</th><th class="num">Leads vend.</th><th class="num">Monto vendido</th><th class="num">Tasa cierre</th></tr></thead>
+    <tbody id="vendorAdTableBody"></tbody>
+  </table>
+</div>
+<p class="note">Esta tabla usa el mismo criterio que "Rendimiento por anuncio de Meta": solo cuenta leads que tienen <code>utm_content</code> cargado (es decir, llegaron desde un anuncio de Meta identificable), agrupados por el vendedor responsable de cada lead. A diferencia de la tabla "por responsable" de arriba (que es mensual), esta se calcula dia por dia y responde exactamente al mismo rango de fechas elegido.</p>
+
+<h2>Google Ads (referencia, sin cruce con Kommo)</h2>
+<div class="kpi-grid">
+  <div class="kpi red">
+    <div class="label">Gasto Google Ads (en el rango)</div>
+    <div class="value" id="kpi-gasto-google"></div>
+    <div class="sub">2 campañas: "Campaign TechoCompleto Publico General" y "C MAX REN - TECHO COMPLETO"</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Conversiones reportadas por Google (en el rango)</div>
+    <div class="value" id="kpi-conversiones-google"></div>
+    <div class="sub">Conversión propia de Google Ads (no necesariamente un lead en Kommo)</div>
+  </div>
+  <div class="kpi amber">
+    <div class="label">Costo por conversión (Google)</div>
+    <div class="value" id="kpi-costo-conversion-google"></div>
+    <div class="sub">Referencia informativa</div>
+  </div>
+</div>
+<p class="note">Todavía no podemos cruzar Google Ads con Kommo como sí hacemos con Meta. El 18/07/2026 corregimos el "Final URL suffix" de las dos campañas ("Campaign TechoCompleto Publico General" y "C MAX REN - TECHO COMPLETO") para que agregue <code>utm_source=google&utm_medium=cpc&utm_campaign={{campaignid}}</code> a los clics nuevos, pero los leads que ya están en Kommo se generaron antes de ese cambio y no tienen ese tag (no es retroactivo). De los leads históricos, solo 26 tienen un <code>gclid</code> (el ID de clic que Google añade automáticamente) y ninguno tiene <code>utm_source=google</code> cargado. Hay una revisión automática programada todos los lunes que va a avisar cuando se acumule suficiente data nueva de Google para sumar una sección real de ROI, igual que la de Meta. Los números de arriba son el gasto y las conversiones que reporta Google Ads por su cuenta, no están conectados (todavía) a lo que pasa después en Kommo.</p>
+
+<h2>Control de anuncios (pausar / activar en Meta)</h2>
+<div class="filter-bar" style="margin-bottom:10px;">
+  <div>
+    <label for="workerUrl">URL del panel</label>
+    <input type="text" id="workerUrl" placeholder="https://tu-worker.workers.dev" style="width:260px;">
+  </div>
+  <div>
+    <label for="pinInput">PIN</label>
+    <input type="password" id="pinInput" placeholder="····" style="width:80px;">
+  </div>
+  <button id="savePanelConfig">Guardar en este navegador</button>
+  <span class="range-label" id="panelStatus"></span>
+</div>
+<div class="table-wrap">
+  <table id="adControlTable">
+    <thead><tr><th>Anuncio</th><th>Campaña</th><th>Estado en Meta</th><th>Acción</th></tr></thead>
+    <tbody id="adControlTableBody"></tbody>
+  </table>
+</div>
+<p class="note">Esto pausa o activa el anuncio de verdad en Meta Ads Manager (no es una simulación). La URL del panel y el PIN se guardan solo en este navegador, nunca en el archivo del dashboard. Si no los tenés, pedíselos a quien configuró el panel. El estado de esta tabla es el que tenía Meta en el último refresh diario, no en tiempo real.</p>
+
+<footer>
+  Fuente: Kommo API (pipeline "Embudo de ventas"), Meta Ads y Google Ads (Windsor.ai, cuenta "El Gran Emporio de la Chapa"). Se actualiza solo todos los días a las 6am (hora Argentina) vía GitHub Actions. Última actualización: <span id="lastUpdated">__LAST_UPDATED__</span>.
+</footer>
+
+<script>
+/*__DATA_BLOCK__*/
+const fmtMoney = (n) => '$' + Math.round(n).toLocaleString('es-AR');
+const fmtPct = (n) => n.toFixed(1) + '%';
+
+let stageChartInstance = null;
+
+function getRowsInRange(from, to) {
+  return ROWS.filter(r => r[0] >= from && r[0] <= to);
+}
+
+function getMetaDailyInRange(from, to) {
+  return META_DAILY.filter(r => r.date >= from && r.date <= to);
+}
+
+function getGoogleDailyInRange(from, to) {
+  return GOOGLE_DAILY.filter(r => r[0] >= from && r[0] <= to);
+}
+
+function getMetaAdDailyInRange(from, to) {
+  return META_AD_DAILY.filter(r => r.date >= from && r.date <= to);
+}
+
+function monthsOverlapping(from, to) {
+  const months = new Set();
+  let d = new Date(from + 'T00:00:00Z');
+  const end = new Date(to + 'T00:00:00Z');
+  while (d <= end) {
+    months.add(d.toISOString().slice(0,7));
+    d.setUTCMonth(d.getUTCMonth()+1);
+  }
+  months.add(from.slice(0,7));
+  months.add(to.slice(0,7));
+  return months;
+}
+
+function render() {
+  const from = document.getElementById('dateFrom').value;
+  const to = document.getElementById('dateTo').value;
+  if (!from || !to) return;
+  document.getElementById('rangeLabel').textContent = from + ' a ' + to;
+
+  const rows = getRowsInRange(from, to);
+
+  const stageTotals = STAGES.map(()=>[0,0]);
+  const sourceTotals = SOURCES.map(()=>[0,0,0,0]);
+  const campaignTotals = CAMPAIGNS.map(()=>[0,0,0,0]);
+  const adTotals = AD_NAMES.map(()=>[0,0,0,0]);
+  const vendorAdTotals = USER_NAMES_AD.map(()=>[0,0,0,0]);
+
+  rows.forEach(r => {
+    const [, stageArr, sourceArr, campaignArr, adArr, userAdArr] = r;
+    stageArr.forEach((v,i) => { stageTotals[i][0]+=v[0]; stageTotals[i][1]+=v[1]; });
+    sourceArr.forEach((v,i) => { for(let k=0;k<4;k++) sourceTotals[i][k]+=v[k]; });
+    campaignArr.forEach((v,i) => { for(let k=0;k<4;k++) campaignTotals[i][k]+=v[k]; });
+    (adArr||[]).forEach((v,i) => { for(let k=0;k<4;k++) adTotals[i][k]+=v[k]; });
+    (userAdArr||[]).forEach((v,i) => { for(let k=0;k<4;k++) vendorAdTotals[i][k]+=v[k]; });
+  });
+
+  const totalCotizado = sourceTotals.reduce((a,s)=>a+s[1],0);
+  const totalVendido = sourceTotals.reduce((a,s)=>a+s[3],0);
+  const countCotizadoTotal = sourceTotals.reduce((a,s)=>a+s[0],0);
+  const countVendidoTotal = sourceTotals.reduce((a,s)=>a+s[2],0);
+  const totalLeads = countCotizadoTotal; // "vendido" ya es subconjunto de "cotizado", no se suman
+
+  document.getElementById('kpi-cotizado-total').textContent = fmtMoney(totalCotizado);
+  document.getElementById('kpi-cotizado-total-count').textContent = countCotizadoTotal.toLocaleString('es-AR') + ' leads';
+  document.getElementById('kpi-vendido-total').textContent = fmtMoney(totalVendido);
+  document.getElementById('kpi-vendido-total-count').textContent = countVendidoTotal.toLocaleString('es-AR') + ' ventas';
+  document.getElementById('kpi-cierre-total').textContent = totalLeads>0 ? fmtPct(countVendidoTotal/totalLeads*100) : '0.0%';
+  document.getElementById('kpi-leads-total').textContent = totalLeads.toLocaleString('es-AR');
+
+  const metaIdx = SOURCES.indexOf('meta');
+  const meta = sourceTotals[metaIdx];
+  const metaLeadsTotal = meta[0]; // "vendido" ya es subconjunto de "cotizado", no se suman
+  document.getElementById('kpi-cotizado-meta').textContent = fmtMoney(meta[1]);
+  document.getElementById('kpi-cotizado-meta-count').textContent = meta[0].toLocaleString('es-AR') + ' leads';
+  document.getElementById('kpi-vendido-meta').textContent = fmtMoney(meta[3]);
+  document.getElementById('kpi-vendido-meta-count').textContent = meta[2].toLocaleString('es-AR') + ' ventas';
+  document.getElementById('kpi-cierre-meta').textContent = metaLeadsTotal>0 ? fmtPct(meta[2]/metaLeadsTotal*100) : '0.0%';
+
+  const metaDailyRows = getMetaDailyInRange(from, to);
+  const spendByCampaign = {};
+  const resultsByCampaign = {};
+  metaDailyRows.forEach(r => {
+    spendByCampaign[r.campaign] = (spendByCampaign[r.campaign]||0) + r.spend;
+    resultsByCampaign[r.campaign] = (resultsByCampaign[r.campaign]||0) + r.results;
+  });
+  const totalSpendMeta = Object.values(spendByCampaign).reduce((a,v)=>a+v,0);
+  const roiMeta = totalSpendMeta>0 ? (meta[3]-totalSpendMeta)/totalSpendMeta*100 : null;
+  document.getElementById('kpi-gasto-meta').textContent = fmtMoney(totalSpendMeta);
+  document.getElementById('kpi-roi-meta').innerHTML = roiMeta!=null
+    ? 'ROI vs. vendido: <span class="' + (roiMeta>=0?'pos':'neg') + '">' + (roiMeta>=0?'+':'') + fmtPct(roiMeta) + '</span>'
+    : '<span class="muted">Sin datos de gasto en este rango</span>';
+  document.getElementById('metaSpendNote').textContent = from < '2026-03-20'
+    ? 'El rango elegido incluye fechas anteriores al 20/03/2026, donde no hay datos diarios de gasto de Meta cargados; el gasto mostrado puede estar incompleto.'
+    : '';
+
+  const stageBody = document.getElementById('stageTableBody');
+  stageBody.innerHTML = '';
+  STAGES.forEach((s,i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + s + '</td><td class="num">' + stageTotals[i][0].toLocaleString('es-AR') + '</td><td class="num">' + fmtMoney(stageTotals[i][1]) + '</td>';
+    stageBody.appendChild(tr);
+  });
+
+  try {
+  if (stageChartInstance) stageChartInstance.destroy();
+  stageChartInstance = new Chart(document.getElementById('stageChart'), {
+    type: 'bar',
+    data: {
+      labels: STAGES,
+      datasets: [{
+        label: 'Monto ($)',
+        data: STAGES.map((s,i)=>stageTotals[i][1]),
+        backgroundColor: STAGES.map(s => s==='Venta' ? '#1ba97a' : '#3987e5'),
+        borderRadius: 4,
+        maxBarThickness: 40
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: (ctx)=> fmtMoney(ctx.parsed.y) } } },
+      scales:{
+        y:{ ticks:{ color:'#9aa5bf', callback:(v)=> '$'+(v/1e6).toFixed(0)+'M' }, grid:{color:'#2a3550'} },
+        x:{ ticks:{ color:'#9aa5bf' }, grid:{display:false} }
+      }
+    }
+  });
+  } catch(e) { console.warn('Chart.js no disponible, se omite el gráfico:', e); }
+
+  const campRows = CAMPAIGNS.map((name, i) => {
+    const [cc,ca,cv,va] = campaignTotals[i];
+    const displayName = DISPLAY_CAMPAIGNS[name] || name;
+    const status = CAMPAIGN_STATUS[name] || 'sindato';
+    return {name, displayName, cc, ca, cv, va, status};
+  });
+  const merged = {};
+  campRows.forEach(r => {
+    if (!merged[r.displayName]) merged[r.displayName] = {displayName:r.displayName, cc:0, ca:0, cv:0, va:0, names:[], statuses:[]};
+    merged[r.displayName].cc += r.cc;
+    merged[r.displayName].ca += r.ca;
+    merged[r.displayName].cv += r.cv;
+    merged[r.displayName].va += r.va;
+    merged[r.displayName].names.push(r.name);
+    merged[r.displayName].statuses.push(r.status);
+  });
+  Object.values(merged).forEach(c => {
+    c.status = c.statuses.includes('activa') ? 'activa' : (c.statuses.every(s => s === 'sindato') ? 'sindato' : 'pausada');
+  });
+  const campStatusFilterEl = document.getElementById('campaignStatusFilter');
+  const campStatusFilter = campStatusFilterEl ? campStatusFilterEl.value : 'todas';
+  let campList = Object.values(merged).filter(c => c.cc+c.cv > 0);
+  if (campStatusFilter === 'activa') campList = campList.filter(c => c.status === 'activa');
+  if (campStatusFilter === 'pausada') campList = campList.filter(c => c.status !== 'activa');
+  campList.forEach(c => {
+    let spend = 0, results = 0;
+    c.names.forEach(n => {
+      const metaName = META_NAME_MAP[c.displayName] || n;
+      spend += spendByCampaign[metaName] || spendByCampaign[n] || 0;
+      results += resultsByCampaign[metaName] || resultsByCampaign[n] || 0;
+    });
+    c.names.forEach(n => {
+      if (!(n in spendByCampaign) && (META_NAME_MAP[c.displayName] === n)) return;
+    });
+    c.spend = spend;
+    c.results = results;
+  });
+  const seen = new Set();
+  campList.forEach(c => {
+    c.names.forEach(n => seen.add(n));
+  });
+
+  campList.sort((a,b)=> (b.ca+b.va) - (a.ca+a.va));
+  const campBody = document.getElementById('campaignTableBody');
+  campBody.innerHTML = '';
+  if (campList.length === 0) {
+    campBody.innerHTML = '<tr><td colspan="11" class="empty">No hay leads de Meta en este rango de fechas</td></tr>';
+  }
+  campList.forEach(c => {
+    const leadsTotal = c.cc; // "vendido" ya es subconjunto de "cotizado", no se suman
+    const cierre = leadsTotal>0 ? (c.cv/leadsTotal*100) : 0;
+    const costoResultado = (c.spend>0 && c.results>0) ? c.spend/c.results : null;
+    const costoVenta = (c.spend>0 && c.cv>0) ? c.spend/c.cv : null;
+    const roi = (c.spend>0) ? ((c.va - c.spend)/c.spend*100) : null;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + c.displayName + '</td>' +
+      '<td>' + (c.status === 'activa' ? '<span class="badge" style="background:rgba(60,157,92,.15); color:#3c9d5c;">Activa</span>' : (c.status === 'sindato' ? '<span class="badge sin">Sin dato</span>' : '<span class="badge" style="background:rgba(184,76,60,.15); color:#b84c3c;">Pausada</span>')) + '</td>' +
+      '<td class="num">' + Math.round(c.cc).toLocaleString('es-AR') + '</td>' +
+      '<td class="num">' + fmtMoney(c.ca) + '</td>' +
+      '<td class="num">' + Math.round(c.cv).toLocaleString('es-AR') + '</td>' +
+      '<td class="num">' + fmtMoney(c.va) + '</td>' +
+      '<td class="num">' + fmtPct(cierre) + '</td>' +
+      '<td class="num">' + (c.spend>0 ? fmtMoney(c.spend) : '<span class="muted">s/d</span>') + '</td>' +
+      '<td class="num">' + (costoResultado!=null ? fmtMoney(costoResultado) : '<span class="muted">s/d</span>') + '</td>' +
+      '<td class="num">' + (costoVenta!=null ? fmtMoney(costoVenta) : '<span class="muted">s/d</span>') + '</td>' +
+      '<td class="num">' + (roi!=null ? ('<span class="'+(roi>=0?'pos':'neg')+'">'+(roi>=0?'+':'')+fmtPct(roi)+'</span>') : '<span class="muted">s/d</span>') + '</td>';
+    campBody.appendChild(tr);
+  });
+
+
+  const metaAdDailyRows = getMetaAdDailyInRange(from, to);
+  const spendByAd = {};
+  const resultsByAd = {};
+  metaAdDailyRows.forEach(r => {
+    spendByAd[r.ad_name] = (spendByAd[r.ad_name]||0) + r.spend;
+    resultsByAd[r.ad_name] = (resultsByAd[r.ad_name]||0) + r.results;
+  });
+  const adStatusFilterEl = document.getElementById('adStatusFilter');
+  const adStatusFilter = adStatusFilterEl ? adStatusFilterEl.value : 'todas';
+  let adList = AD_NAMES.map((name, i) => {
+    const [cc,ca,cv,va] = adTotals[i];
+    const status = AD_STATUS[name] || 'sindato';
+    return {name, cc, ca, cv, va, spend: spendByAd[name]||0, results: resultsByAd[name]||0, status};
+  }).filter(a => a.cc+a.cv > 0);
+  if (adStatusFilter === 'activa') adList = adList.filter(a => a.status === 'activa');
+  if (adStatusFilter === 'pausada') adList = adList.filter(a => a.status !== 'activa');
+  adList.sort((a,b)=> (b.ca+b.va) - (a.ca+a.va));
+  const adBody = document.getElementById('adTableBody');
+  adBody.innerHTML = '';
+  if (adList.length === 0) {
+    adBody.innerHTML = '<tr><td colspan="12" class="empty">No hay leads con anuncio identificado en este rango de fechas</td></tr>';
+  }
+  adList.forEach(a => {
+    const leadsTotal = a.cc;
+    const cierre = leadsTotal>0 ? (a.cv/leadsTotal*100) : 0;
+    const costoResultado = (a.spend>0 && a.results>0) ? a.spend/a.results : null;
+    const costoVenta = (a.spend>0 && a.cv>0) ? a.spend/a.cv : null;
+    const roi = (a.spend>0) ? ((a.va - a.spend)/a.spend*100) : null;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + a.name + '</td>' +
+      '<td>' + (a.status === 'activa' ? '<span class="badge" style="background:rgba(60,157,92,.15); color:#3c9d5c;">Activo</span>' : (a.status === 'sindato' ? '<span class="badge sin">Sin dato</span>' : '<span class="badge" style="background:rgba(184,76,60,.15); color:#b84c3c;">Pausado</span>')) + '</td>' +
+      '<td>' + ((AD_CAMPAIGN_MAP[a.name] && AD_CAMPAIGN_MAP[a.name].length) ? AD_CAMPAIGN_MAP[a.name].join('<br>') : '<span class="muted">s/d</span>') + '</td>' +
+      '<td class="num">' + Math.round(a.cc).toLocaleString('es-AR') + '</td>' +
+      '<td class="num">' + fmtMoney(a.ca) + '</td>' +
+      '<td class="num">' + Math.round(a.cv).toLocaleString('es-AR') + '</td>' +
+      '<td class="num">' + fmtMoney(a.va) + '</td>' +
+      '<td class="num">' + fmtPct(cierre) + '</td>' +
+      '<td class="num">' + (a.spend>0 ? fmtMoney(a.spend) : '<span class="muted">s/d</span>') + '</td>' +
+      '<td class="num">' + (costoResultado!=null ? fmtMoney(costoResultado) : '<span class="muted">s/d</span>') + '</td>' +
+      '<td class="num">' + (costoVenta!=null ? fmtMoney(costoVenta) : '<span class="muted">s/d</span>') + '</td>' +
+      '<td class="num">' + (roi!=null ? ('<span class="'+(roi>=0?'pos':'neg')+'">'+(roi>=0?'+':'')+fmtPct(roi)+'</span>') : '<span class="muted">s/d</span>') + '</td>';
+    adBody.appendChild(tr);
+  });
+
+  const srcBody = document.getElementById('sourceTableBody');
+  srcBody.innerHTML = '';
+  const srcRows = SOURCES.map((name,i)=>({name, t:sourceTotals[i]})).sort((a,b)=> (b.t[1]+b.t[3])-(a.t[1]+a.t[3]));
+  srcRows.forEach(({name,t}) => {
+    const [cc,ca,cv,va] = t;
+    const total = cc+cv;
+    const cierre = total>0 ? cv/total*100 : 0;
+    const tr = document.createElement('tr');
+    const badge = name==='meta' ? '<span class="badge meta">Meta Ads</span>' : '<span class="badge sin">' + name + '</span>';
+    tr.innerHTML = '<td>' + badge + '</td><td class="num">' + cc.toLocaleString('es-AR') + '</td><td class="num">' + fmtMoney(ca) + '</td><td class="num">' + cv.toLocaleString('es-AR') + '</td><td class="num">' + fmtMoney(va) + '</td><td class="num">' + fmtPct(cierre) + '</td>';
+    srcBody.appendChild(tr);
+  });
+
+  const months = monthsOverlapping(from, to);
+  const userTotals = {};
+  USERS.forEach(u => userTotals[u] = {cc:0,ca:0,cv:0,va:0});
+  months.forEach(m => {
+    const monthData = MONTHLY_USER[m];
+    if (!monthData) return;
+    Object.entries(monthData).forEach(([uname, u]) => {
+      if (!userTotals[uname]) userTotals[uname] = {cc:0,ca:0,cv:0,va:0};
+      userTotals[uname].cc += u.countCotizado;
+      userTotals[uname].ca += u.amountCotizado;
+      userTotals[uname].cv += u.countVendido;
+      userTotals[uname].va += u.amountVendido;
+    });
+  });
+  const userBody = document.getElementById('userTableBody');
+  userBody.innerHTML = '';
+  const userRows = Object.entries(userTotals).filter(([,u])=>u.cc+u.cv>0).sort((a,b)=> (b[1].ca+b[1].va)-(a[1].ca+a[1].va));
+  userRows.forEach(([name,u]) => {
+    const total = u.cc+u.cv;
+    const cierre = total>0 ? u.cv/total*100 : 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + name + '</td><td class="num">' + u.cc.toLocaleString('es-AR') + '</td><td class="num">' + fmtMoney(u.ca) + '</td><td class="num">' + u.cv.toLocaleString('es-AR') + '</td><td class="num">' + fmtMoney(u.va) + '</td><td class="num">' + fmtPct(cierre) + '</td>';
+    userBody.appendChild(tr);
+  });
+
+  const vendorAdBody = document.getElementById('vendorAdTableBody');
+  vendorAdBody.innerHTML = '';
+  const vendorAdRows = USER_NAMES_AD.map((name,i)=>({name, t:vendorAdTotals[i]})).filter(r => r.t[0]+r.t[2] > 0).sort((a,b)=> (b.t[1]+b.t[3])-(a.t[1]+a.t[3]));
+  if (vendorAdRows.length === 0) {
+    vendorAdBody.innerHTML = '<tr><td colspan="6" class="empty">No hay leads de anuncios en este rango de fechas</td></tr>';
+  }
+  vendorAdRows.forEach(({name,t}) => {
+    const [cc,ca,cv,va] = t;
+    const cierre = cc>0 ? (cv/cc*100) : 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + name + '</td><td class="num">' + cc.toLocaleString('es-AR') + '</td><td class="num">' + fmtMoney(ca) + '</td><td class="num">' + cv.toLocaleString('es-AR') + '</td><td class="num">' + fmtMoney(va) + '</td><td class="num">' + fmtPct(cierre) + '</td>';
+    vendorAdBody.appendChild(tr);
+  });
+
+
+  const googleRows = getGoogleDailyInRange(from, to);
+  const googleSpend = googleRows.reduce((a,r)=>a+r[1],0);
+  const googleConv = googleRows.reduce((a,r)=>a+r[2],0);
+  document.getElementById('kpi-gasto-google').textContent = fmtMoney(googleSpend);
+  document.getElementById('kpi-conversiones-google').textContent = Math.round(googleConv).toLocaleString('es-AR');
+  document.getElementById('kpi-costo-conversion-google').textContent = googleConv>0 ? fmtMoney(googleSpend/googleConv) : '<span class="muted">s/d</span>';
+
+  ['stageTable','campaignTable','adTable','sourceTable','userTable','vendorAdTable'].forEach(reapplySort);
+}
+
+// --- Ordenamiento de tablas por columna (clic en encabezado) ---
+const sortState = {};
+
+function parseNum(raw) {
+  const text = (raw || '').trim();
+  if (!text || /s\/d/i.test(text)) return null;
+  if (text.includes('%')) {
+    const v = parseFloat(text.replace(/[^0-9.\-]/g, ''));
+    return isNaN(v) ? null : v;
+  }
+  const cleaned = text.replace(/[$+]/g, '').replace(/\./g, '').replace(/,/g, '.');
+  const v = parseFloat(cleaned);
+  return isNaN(v) ? null : v;
+}
+
+function applySort(tableId, colIndex, dir) {
+  const table = document.getElementById(tableId);
+  if (!table || !table.tHead || !table.tBodies[0]) return;
+  const tbody = table.tBodies[0];
+  const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => !r.querySelector('.empty'));
+  if (rows.length < 2) return;
+  const ths = table.tHead.querySelectorAll('th');
+  const isNum = ths[colIndex] && ths[colIndex].classList.contains('num');
+  rows.sort((a, b) => {
+    const cellA = a.children[colIndex] ? a.children[colIndex].textContent : '';
+    const cellB = b.children[colIndex] ? b.children[colIndex].textContent : '';
+    let cmp;
+    if (isNum) {
+      const nA = parseNum(cellA), nB = parseNum(cellB);
+      cmp = (nA === null ? -Infinity : nA) - (nB === null ? -Infinity : nB);
+    } else {
+      cmp = cellA.localeCompare(cellB, 'es');
+    }
+    return dir === 'asc' ? cmp : -cmp;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+  ths.forEach((th, i) => {
+    th.classList.toggle('sorted', i === colIndex);
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = i === colIndex ? (dir === 'asc' ? '▲' : '▼') : '↕';
+  });
+}
+
+function reapplySort(tableId) {
+  const state = sortState[tableId];
+  if (state) applySort(tableId, state.col, state.dir);
+}
+
+function makeSortable(tableId) {
+  const table = document.getElementById(tableId);
+  if (!table || !table.tHead) return;
+  table.tHead.querySelectorAll('th').forEach((th, colIndex) => {
+    const label = document.createElement('span');
+    label.textContent = th.textContent;
+    const arrow = document.createElement('span');
+    arrow.className = 'sort-arrow';
+    arrow.textContent = '↕';
+    th.textContent = '';
+    th.appendChild(label);
+    th.appendChild(arrow);
+    th.addEventListener('click', () => {
+      const state = sortState[tableId];
+      const dir = (state && state.col === colIndex && state.dir === 'desc') ? 'asc' : 'desc';
+      sortState[tableId] = {col: colIndex, dir};
+      applySort(tableId, colIndex, dir);
+    });
+  });
+}
+
+['stageTable','campaignTable','adTable','sourceTable','userTable','vendorAdTable'].forEach(makeSortable);
+
+const allDates = ROWS.map(r=>r[0]).sort();
+const minDate = allDates[0];
+const maxDate = allDates[allDates.length-1];
+
+document.getElementById('dateFrom').min = minDate;
+document.getElementById('dateFrom').max = maxDate;
+document.getElementById('dateTo').min = minDate;
+document.getElementById('dateTo').max = maxDate;
+document.getElementById('dateFrom').value = minDate;
+document.getElementById('dateTo').value = maxDate;
+
+document.getElementById('dateFrom').addEventListener('change', render);
+document.getElementById('dateTo').addEventListener('change', render);
+if (document.getElementById('campaignStatusFilter')) { document.getElementById('campaignStatusFilter').addEventListener('change', render); }
+if (document.getElementById('adStatusFilter')) { document.getElementById('adStatusFilter').addEventListener('change', render); }
+
+document.querySelectorAll('.quick button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const range = btn.dataset.range;
+    if (range === 'all') {
+      document.getElementById('dateFrom').value = minDate;
+      document.getElementById('dateTo').value = maxDate;
+    } else {
+      const days = parseInt(range, 10);
+      const end = new Date(maxDate + 'T00:00:00Z');
+      const start = new Date(end);
+      start.setUTCDate(start.getUTCDate() - (days - 1));
+      const startStr = start.toISOString().slice(0,10);
+      document.getElementById('dateFrom').value = startStr < minDate ? minDate : startStr;
+      document.getElementById('dateTo').value = maxDate;
+    }
+    render();
+  });
+});
+
+// --- Panel de control de anuncios (pausar/activar en Meta) ---
+function loadPanelConfig() {
+  return {
+    url: localStorage.getItem('dashPanelUrl') || '',
+    pin: localStorage.getItem('dashPanelPin') || '',
+  };
+}
+
+function renderAdControl() {
+  const cfg = loadPanelConfig();
+  document.getElementById('workerUrl').value = cfg.url;
+  document.getElementById('pinInput').value = cfg.pin;
+
+  const tbody = document.getElementById('adControlTableBody');
+  tbody.innerHTML = '';
+  const list = (typeof AD_ID_MAP !== 'undefined' ? AD_ID_MAP : []).slice()
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Sin datos de anuncios de Meta (falta correr fetch_meta_ads_meta.js)</td></tr>';
+    return;
+  }
+  list.forEach((ad) => {
+    const tr = document.createElement('tr');
+    tr.dataset.adId = ad.id;
+    const isActive = ad.status === 'ACTIVE';
+    tr.innerHTML =
+      '<td>' + ad.name + '</td>' +
+      '<td>' + (ad.campaign_name || '<span class="muted">s/d</span>') + '</td>' +
+      '<td class="ad-status-cell">' + (isActive
+        ? '<span class="badge" style="background:rgba(60,157,92,.15); color:#3c9d5c;">Activo</span>'
+        : '<span class="badge" style="background:rgba(184,76,60,.15); color:#b84c3c;">' + ad.status + '</span>') + '</td>' +
+      '<td><button class="toggle-ad-btn" data-action="' + (isActive ? 'pause' : 'activate') + '">' +
+        (isActive ? 'Pausar' : 'Activar') + '</button></td>';
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.toggle-ad-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const tr = btn.closest('tr');
+      const adId = tr.dataset.adId;
+      const action = btn.dataset.action;
+      const { url, pin } = loadPanelConfig();
+      const statusEl = document.getElementById('panelStatus');
+      if (!url || !pin) {
+        statusEl.textContent = 'Falta cargar la URL del panel y el PIN (arriba) y guardar.';
+        return;
+      }
+      btn.disabled = true;
+      statusEl.textContent = 'Enviando...';
+      try {
+        const res = await fetch(url.replace(/\/$/, '') + '/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin, ad_id: adId, action }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        statusEl.textContent = 'Listo: ' + tr.children[0].textContent + ' -> ' + data.status;
+        const nowActive = data.status === 'ACTIVE';
+        tr.querySelector('.ad-status-cell').innerHTML = nowActive
+          ? '<span class="badge" style="background:rgba(60,157,92,.15); color:#3c9d5c;">Activo</span>'
+          : '<span class="badge" style="background:rgba(184,76,60,.15); color:#b84c3c;">' + data.status + '</span>';
+        btn.dataset.action = nowActive ? 'pause' : 'activate';
+        btn.textContent = nowActive ? 'Pausar' : 'Activar';
+      } catch (e) {
+        statusEl.textContent = 'Error: ' + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+document.getElementById('savePanelConfig').addEventListener('click', () => {
+  localStorage.setItem('dashPanelUrl', document.getElementById('workerUrl').value.trim());
+  localStorage.setItem('dashPanelPin', document.getElementById('pinInput').value.trim());
+  document.getElementById('panelStatus').textContent = 'Guardado en este navegador.';
+});
+
+renderAdControl();
+
+render();
+</script>
+
+</body>
+</html>
