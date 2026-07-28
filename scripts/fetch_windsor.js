@@ -1,26 +1,28 @@
 // fetch_windsor.js
-// Trae el gasto y resultados diarios de Meta Ads (por campaña y por anuncio) y de
-// Google Ads (por campaña), usando la API REST de Windsor.ai (connectors.windsor.ai).
+// Trae el gasto diario de Google Ads (por campaña) usando la API REST de
+// Windsor.ai (connectors.windsor.ai).
+//
+// El gasto de Meta Ads YA NO se trae acá: se saca directo de la Graph API de
+// Meta (ver fetch_meta_insights.js), porque Windsor.ai devuelve
+// "Please check the API key used" 400 cuando se lo llama desde el runner de
+// GitHub Actions (aunque la misma key funciona bien probada a mano).
 //
 // Requiere variable de entorno:
 //   WINDSOR_API_KEY  -> se obtiene en https://onboard.windsor.ai
 //
 // Salida en outputs/.data/:
-//   meta_campaign_daily.json  [{ date, campaign, spend, results }]
-//   meta_ad_daily.json        [{ date, ad_name, spend, results }]
 //   google_campaign_daily.json[{ date, campaign, spend, conversions }]
+//
+// Este script NUNCA corta el workflow con exit code distinto de 0: si Windsor.ai
+// falla por lo que sea, escribe un archivo vacío y sigue, para que el resto del
+// dashboard (Kommo + Meta) se actualice igual.
 
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 
 const API_KEY = process.env.WINDSOR_API_KEY;
-if (!API_KEY) {
-  console.error('Falta WINDSOR_API_KEY en las variables de entorno.');
-  process.exit(1);
-}
 
-// Traemos desde el inicio de datos diarios de Meta hasta hoy.
 const DATE_FROM = config.META_SPEND_DATA_START;
 const DATE_TO = new Date().toISOString().slice(0, 10);
 
@@ -41,36 +43,6 @@ async function windsorGet(connector, fields) {
   return json.data || json;
 }
 
-async function fetchMetaCampaignDaily() {
-  const rows = await windsorGet('facebook', [
-    'campaign',
-    'date',
-    'spend',
-    'actions_onsite_conversion_messaging_conversation_started_7d',
-  ]);
-  return rows.map((r) => ({
-    date: r.date,
-    campaign: r.campaign,
-    spend: Number(r.spend) || 0,
-    results: Number(r.actions_onsite_conversion_messaging_conversation_started_7d) || 0,
-  }));
-}
-
-async function fetchMetaAdDaily() {
-  const rows = await windsorGet('facebook', [
-    'ad_name',
-    'date',
-    'spend',
-    'actions_onsite_conversion_messaging_conversation_started_7d',
-  ]);
-  return rows.map((r) => ({
-    date: r.date,
-    ad_name: r.ad_name,
-    spend: Number(r.spend) || 0,
-    results: Number(r.actions_onsite_conversion_messaging_conversation_started_7d) || 0,
-  }));
-}
-
 async function fetchGoogleCampaignDaily() {
   const rows = await windsorGet('google_ads', ['campaign', 'date', 'spend', 'conversions']);
   return rows
@@ -87,23 +59,26 @@ async function main() {
   const outDir = path.join(__dirname, '..', '.data');
   fs.mkdirSync(outDir, { recursive: true });
 
-  console.log('Trayendo gasto diario de Meta por campaña...');
-  const metaCampaignDaily = await fetchMetaCampaignDaily();
-  fs.writeFileSync(path.join(outDir, 'meta_campaign_daily.json'), JSON.stringify(metaCampaignDaily));
-  console.log(`  ${metaCampaignDaily.length} filas.`);
-
-  console.log('Trayendo gasto diario de Meta por anuncio...');
-  const metaAdDaily = await fetchMetaAdDaily();
-  fs.writeFileSync(path.join(outDir, 'meta_ad_daily.json'), JSON.stringify(metaAdDaily));
-  console.log(`  ${metaAdDaily.length} filas.`);
+  if (!API_KEY) {
+    console.error('Falta WINDSOR_API_KEY: se guarda gasto de Google Ads vacío y se sigue.');
+    fs.writeFileSync(path.join(outDir, 'google_campaign_daily.json'), '[]');
+    return;
+  }
 
   console.log('Trayendo gasto diario de Google Ads...');
-  const googleCampaignDaily = await fetchGoogleCampaignDaily();
-  fs.writeFileSync(path.join(outDir, 'google_campaign_daily.json'), JSON.stringify(googleCampaignDaily));
-  console.log(`  ${googleCampaignDaily.length} filas.`);
+  try {
+    const googleCampaignDaily = await fetchGoogleCampaignDaily();
+    fs.writeFileSync(path.join(outDir, 'google_campaign_daily.json'), JSON.stringify(googleCampaignDaily));
+    console.log(`  ${googleCampaignDaily.length} filas.`);
+  } catch (err) {
+    console.error('Windsor.ai falló, se guarda gasto de Google Ads vacío y se sigue (no corta el workflow):');
+    console.error(err.message);
+    fs.writeFileSync(path.join(outDir, 'google_campaign_daily.json'), '[]');
+  }
 }
 
 main().catch((err) => {
+  // No debería llegar acá porque fetchGoogleCampaignDaily ya atrapa sus propios
+  // errores, pero por las dudas no cortamos el workflow tampoco desde acá.
   console.error(err);
-  process.exit(1);
 });
