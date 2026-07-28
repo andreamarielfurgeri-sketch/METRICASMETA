@@ -617,7 +617,7 @@ function render() {
   const googleConv = googleRows.reduce((a,r)=>a+r[2],0);
   document.getElementById('kpi-gasto-google').textContent = fmtMoney(googleSpend);
   document.getElementById('kpi-conversiones-google').textContent = Math.round(googleConv).toLocaleString('es-AR');
-  document.getElementById('kpi-costo-conversion-google').textContent = googleConv>0 ? fmtMoney(googleSpend/googleConv) : '<span class="muted">s/d</span>';
+  document.getElementById('kpi-costo-conversion-google').innerHTML = googleConv>0 ? fmtMoney(googleSpend/googleConv) : '<span class="muted">s/d</span>';
 
   ['stageTable','campaignTable','adTable','sourceTable','userTable','vendorAdTable'].forEach(reapplySort);
 }
