@@ -204,6 +204,24 @@ function main() {
     if (isVenta) { mu.countVendido += 1; mu.amountVendido += amount; }
   });
 
+  // --- Ventas por mes de cierre vs mes de creación del lead ---
+  // Sirve para ver cuánto de lo que se cierra en un mes viene de leads que
+  // entraron ese mismo mes vs meses anteriores (leads "viejos" que recién ahora se cierran).
+  const closeMonthMap = {}; // closeMonth -> { sameMonth:[count,amount], prevMonths:[count,amount] }
+  leads.forEach((lead) => {
+    if (lead.stage_index !== 4) return; // solo "Venta"
+    const closeDateStr = lead.closed_at || lead.created_at; // fallback para leads sin closed_at (dato viejo)
+    const closeMonth = closeDateStr.slice(0, 7);
+    const createdMonth = lead.created_at.slice(0, 7);
+    if (!closeMonthMap[closeMonth]) {
+      closeMonthMap[closeMonth] = { sameMonth: [0, 0], prevMonths: [0, 0] };
+    }
+    const bucket = createdMonth === closeMonth ? 'sameMonth' : 'prevMonths';
+    closeMonthMap[closeMonth][bucket][0] += 1;
+    closeMonthMap[closeMonth][bucket][1] += (lead.price || 0);
+  });
+  const CLOSE_MONTH_ROWS = Object.keys(closeMonthMap).sort().map((m) => [m, closeMonthMap[m].sameMonth, closeMonthMap[m].prevMonths]);
+
   const ROWS = Object.keys(rowsByDate).sort().map((date) => {
     const r = rowsByDate[date];
     return [date, r.stage, r.src, r.camp, r.ad, r.vendorAd, r.stageMeta];
@@ -236,6 +254,7 @@ function main() {
     `const AD_CAMPAIGN_MAP = ${JSON.stringify(AD_CAMPAIGN_MAP)};`,
     `const AD_ID_MAP = ${JSON.stringify(adIdMap)};`,
     `const CAMPAIGN_ID_MAP = ${JSON.stringify(campaignIdMap)};`,
+    `const CLOSE_MONTH_ROWS = ${JSON.stringify(CLOSE_MONTH_ROWS)};`,
     `const ROWS = ${JSON.stringify(ROWS)};`,
     `const MONTHLY_USER = ${JSON.stringify(MONTHLY_USER)};`,
     `const META_DAILY = ${JSON.stringify(META_DAILY)};`,

@@ -7,8 +7,8 @@
 //   KOMMO_TOKEN       -> long-lived token generado en Ajustes > Integraciones
 //
 // Salida: array de leads normalizados en outputs/kommo_leads.json
-//   { id, price, status_id, created_at (YYYY-MM-DD), responsible_user_id,
-//     responsible_user_name, utm_source, utm_campaign, utm_content }
+//   { id, price, status_id, created_at (YYYY-MM-DD), closed_at (YYYY-MM-DD o null),
+//     responsible_user_id, responsible_user_name, utm_source, utm_campaign, utm_content }
 
 const fs = require('fs');
 const path = require('path');
@@ -87,6 +87,7 @@ async function fetchLeads(users) {
         status_id: lead.status_id,
         stage_index: stageInfo.index,
         created_at: toDateStr(lead.created_at),
+        closed_at: lead.closed_at ? toDateStr(lead.closed_at) : null,
         responsible_user_id: lead.responsible_user_id,
         responsible_user_name: users[lead.responsible_user_id] || `Usuario ${lead.responsible_user_id}`,
         utm_source: getCustomFieldValue(lead, config.FIELD_UTM_SOURCE),
