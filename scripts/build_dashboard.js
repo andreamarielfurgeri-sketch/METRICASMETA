@@ -37,6 +37,7 @@ function main() {
   const adCampaignMap = {}; // name -> Set(campaign_name)
   const adStatusByName = {}; // name -> 'activa' si ALGUNA instancia está activa
   const adIdMap = []; // [{id, name, status, campaign_id, campaign_name}] para el panel de control
+  const campaignIdMap = metaAdsMeta.campaigns.map((c) => ({ id: c.id, name: c.name, status: c.status })); // para pausar/activar campañas
   metaAdsMeta.ads.forEach((ad) => {
     if (!adCampaignMap[ad.name]) adCampaignMap[ad.name] = new Set();
     if (ad.campaign_name) adCampaignMap[ad.name].add(ad.campaign_name);
@@ -130,6 +131,7 @@ function main() {
     if (!rowsByDate[date]) {
       rowsByDate[date] = {
         stage: emptyPairArray(config.STAGES.length),
+        stageMeta: emptyPairArray(config.STAGES.length),
         src: emptyQuadArray(SOURCES.length),
         camp: emptyQuadArray(CAMPAIGNS.length),
         ad: emptyQuadArray(AD_NAMES.length),
@@ -150,6 +152,10 @@ function main() {
     // Etapa
     row.stage[lead.stage_index][0] += 1;
     row.stage[lead.stage_index][1] += amount;
+    if (isMetaSource(lead.utm_source)) {
+      row.stageMeta[lead.stage_index][0] += 1;
+      row.stageMeta[lead.stage_index][1] += amount;
+    }
 
     // Fuente
     const srcIdx = isMetaSource(lead.utm_source) ? 0 : 1;
@@ -200,7 +206,7 @@ function main() {
 
   const ROWS = Object.keys(rowsByDate).sort().map((date) => {
     const r = rowsByDate[date];
-    return [date, r.stage, r.src, r.camp, r.ad, r.vendorAd];
+    return [date, r.stage, r.src, r.camp, r.ad, r.vendorAd, r.stageMeta];
   });
 
   // --- META_DAILY / META_AD_DAILY / GOOGLE_DAILY ---
@@ -229,6 +235,7 @@ function main() {
     `const AD_STATUS = ${JSON.stringify(AD_STATUS)};`,
     `const AD_CAMPAIGN_MAP = ${JSON.stringify(AD_CAMPAIGN_MAP)};`,
     `const AD_ID_MAP = ${JSON.stringify(adIdMap)};`,
+    `const CAMPAIGN_ID_MAP = ${JSON.stringify(campaignIdMap)};`,
     `const ROWS = ${JSON.stringify(ROWS)};`,
     `const MONTHLY_USER = ${JSON.stringify(MONTHLY_USER)};`,
     `const META_DAILY = ${JSON.stringify(META_DAILY)};`,
