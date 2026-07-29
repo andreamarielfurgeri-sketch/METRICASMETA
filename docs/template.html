@@ -133,7 +133,7 @@
   <div class="kpi">
     <div class="label">Total de leads (en el rango)</div>
     <div class="value" id="kpi-leads-total"></div>
-    <div class="sub">Embudo de ventas, todas las fuentes</div>
+    <div class="sub">Total de leads, todas las fuentes (el embudo de abajo muestra solo Meta)</div>
   </div>
 </div>
 
@@ -170,7 +170,7 @@
 </div>
 <p class="note" id="metaSpendNote"></p>
 
-<h2>Embudo por etapa (cotizado vs vendido, en el rango)</h2>
+<h2>Embudo por etapa (solo leads de Meta Ads, cotizado vs vendido, en el rango)</h2>
 <div class="grid2">
   <div class="chart-box">
     <div style="position:relative; height:280px;">
@@ -195,6 +195,10 @@
       <option value="pausada">Solo pausadas / sin actividad reciente</option>
     </select>
   </div>
+  <div>
+    <label for="campaignNameFilter">Buscar campaña</label>
+    <input type="text" id="campaignNameFilter" placeholder="Nombre de campaña..." style="width:220px;">
+  </div>
 </div>
 <div class="table-wrap">
   <table id="campaignTable">
@@ -211,6 +215,7 @@
         <th class="num">Costo x resultado</th>
         <th class="num">Costo x venta</th>
         <th class="num">ROI</th>
+        <th>Pausar/Activar</th>
       </tr>
     </thead>
     <tbody id="campaignTableBody"></tbody>
@@ -228,6 +233,10 @@
       <option value="activa">Solo activos</option>
       <option value="pausada">Solo pausados / sin actividad reciente</option>
     </select>
+  </div>
+  <div>
+    <label for="adNameFilter">Buscar anuncio</label>
+    <input type="text" id="adNameFilter" placeholder="Nombre de anuncio..." style="width:220px;">
   </div>
   <div>
     <label for="workerUrl">URL del panel</label>
@@ -359,14 +368,16 @@ function render() {
   const rows = getRowsInRange(from, to);
 
   const stageTotals = STAGES.map(()=>[0,0]);
+  const stageMetaTotals = STAGES.map(()=>[0,0]);
   const sourceTotals = SOURCES.map(()=>[0,0,0,0]);
   const campaignTotals = CAMPAIGNS.map(()=>[0,0,0,0]);
   const adTotals = AD_NAMES.map(()=>[0,0,0,0]);
   const vendorAdTotals = USER_NAMES_AD.map(()=>[0,0,0,0]);
 
   rows.forEach(r => {
-    const [, stageArr, sourceArr, campaignArr, adArr, userAdArr] = r;
+    const [, stageArr, sourceArr, campaignArr, adArr, userAdArr, stageMetaArr] = r;
     stageArr.forEach((v,i) => { stageTotals[i][0]+=v[0]; stageTotals[i][1]+=v[1]; });
+    (stageMetaArr||[]).forEach((v,i) => { stageMetaTotals[i][0]+=v[0]; stageMetaTotals[i][1]+=v[1]; });
     sourceArr.forEach((v,i) => { for(let k=0;k<4;k++) sourceTotals[i][k]+=v[k]; });
     campaignArr.forEach((v,i) => { for(let k=0;k<4;k++) campaignTotals[i][k]+=v[k]; });
     (adArr||[]).forEach((v,i) => { for(let k=0;k<4;k++) adTotals[i][k]+=v[k]; });
@@ -416,7 +427,7 @@ function render() {
   stageBody.innerHTML = '';
   STAGES.forEach((s,i) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = '<td>' + s + '</td><td class="num">' + stageTotals[i][0].toLocaleString('es-AR') + '</td><td class="num">' + fmtMoney(stageTotals[i][1]) + '</td>';
+    tr.innerHTML = '<td>' + s + '</td><td class="num">' + stageMetaTotals[i][0].toLocaleString('es-AR') + '</td><td class="num">' + fmtMoney(stageMetaTotals[i][1]) + '</td>';
     stageBody.appendChild(tr);
   });
 
@@ -428,7 +439,7 @@ function render() {
       labels: STAGES,
       datasets: [{
         label: 'Monto ($)',
-        data: STAGES.map((s,i)=>stageTotals[i][1]),
+        data: STAGES.map((s,i)=>stageMetaTotals[i][1]),
         backgroundColor: STAGES.map(s => s==='Venta' ? '#1ba97a' : '#3987e5'),
         borderRadius: 4,
         maxBarThickness: 40
@@ -469,6 +480,9 @@ function render() {
   let campList = Object.values(merged).filter(c => c.cc+c.cv > 0);
   if (campStatusFilter === 'activa') campList = campList.filter(c => c.status === 'activa');
   if (campStatusFilter === 'pausada') campList = campList.filter(c => c.status !== 'activa');
+  const campNameFilterEl = document.getElementById('campaignNameFilter');
+  const campNameFilter = campNameFilterEl ? campNameFilterEl.value.trim().toLowerCase() : '';
+  if (campNameFilter) campList = campList.filter(c => c.displayName.toLowerCase().includes(campNameFilter));
   campList.forEach(c => {
     let spend = 0, results = 0;
     c.names.forEach(n => {
@@ -491,7 +505,7 @@ function render() {
   const campBody = document.getElementById('campaignTableBody');
   campBody.innerHTML = '';
   if (campList.length === 0) {
-    campBody.innerHTML = '<tr><td colspan="11" class="empty">No hay leads de Meta en este rango de fechas</td></tr>';
+    campBody.innerHTML = '<tr><td colspan="12" class="empty">No hay leads de Meta en este rango de fechas</td></tr>';
   }
   campList.forEach(c => {
     const leadsTotal = c.cc; // "vendido" ya es subconjunto de "cotizado", no se suman
@@ -511,9 +525,11 @@ function render() {
       '<td class="num">' + (c.spend>0 ? fmtMoney(c.spend) : '<span class="muted">s/d</span>') + '</td>' +
       '<td class="num">' + (costoResultado!=null ? fmtMoney(costoResultado) : '<span class="muted">s/d</span>') + '</td>' +
       '<td class="num">' + (costoVenta!=null ? fmtMoney(costoVenta) : '<span class="muted">s/d</span>') + '</td>' +
-      '<td class="num">' + (roi!=null ? ('<span class="'+(roi>=0?'pos':'neg')+'">'+(roi>=0?'+':'')+fmtPct(roi)+'</span>') : '<span class="muted">s/d</span>') + '</td>';
+      '<td class="num">' + (roi!=null ? ('<span class="'+(roi>=0?'pos':'neg')+'">'+(roi>=0?'+':'')+fmtPct(roi)+'</span>') : '<span class="muted">s/d</span>') + '</td>' +
+      '<td class="accion-cell">' + buildCampaignActionCell(c.names) + '</td>';
     campBody.appendChild(tr);
   });
+  wireCampaignToggles(campBody);
 
 
   const metaAdDailyRows = getMetaAdDailyInRange(from, to);
@@ -532,6 +548,9 @@ function render() {
   }).filter(a => a.cc+a.cv > 0);
   if (adStatusFilter === 'activa') adList = adList.filter(a => a.status === 'activa');
   if (adStatusFilter === 'pausada') adList = adList.filter(a => a.status !== 'activa');
+  const adNameFilterEl = document.getElementById('adNameFilter');
+  const adNameFilter = adNameFilterEl ? adNameFilterEl.value.trim().toLowerCase() : '';
+  if (adNameFilter) adList = adList.filter(a => a.name.toLowerCase().includes(adNameFilter));
   adList.sort((a,b)=> (b.ca+b.va) - (a.ca+a.va));
   const adBody = document.getElementById('adTableBody');
   adBody.innerHTML = '';
@@ -712,6 +731,8 @@ document.getElementById('dateFrom').addEventListener('change', render);
 document.getElementById('dateTo').addEventListener('change', render);
 if (document.getElementById('campaignStatusFilter')) { document.getElementById('campaignStatusFilter').addEventListener('change', render); }
 if (document.getElementById('adStatusFilter')) { document.getElementById('adStatusFilter').addEventListener('change', render); }
+if (document.getElementById('campaignNameFilter')) { document.getElementById('campaignNameFilter').addEventListener('input', render); }
+if (document.getElementById('adNameFilter')) { document.getElementById('adNameFilter').addEventListener('input', render); }
 
 document.querySelectorAll('.quick button').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -786,6 +807,57 @@ function wireAdToggles(container) {
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
         statusEl.textContent = 'Listo: ' + adId + ' -> ' + data.status;
+        input.checked = data.status === 'ACTIVE';
+      } catch (e) {
+        statusEl.textContent = 'Error: ' + e.message;
+        input.checked = !goingActive;
+      } finally {
+        input.disabled = false;
+      }
+    });
+  });
+}
+
+function buildCampaignActionCell(names) {
+  const entries = (typeof CAMPAIGN_ID_MAP !== 'undefined' ? CAMPAIGN_ID_MAP : []).filter((c) => names.includes(c.name));
+  if (entries.length === 0) return '<span class="muted">s/d</span>';
+  return entries.map((c) => {
+    const isActive = c.status === 'ACTIVE';
+    const label = (entries.length > 1)
+      ? '<span class="toggle-campaign-label" title="' + c.name + '">' + c.name + '</span>'
+      : '';
+    return '<div class="toggle-row" data-campaign-id="' + c.id + '">' +
+      '<label class="ad-toggle"><input type="checkbox" ' + (isActive ? 'checked' : '') + '><span class="slider"></span></label>' +
+      label +
+      '</div>';
+  }).join('');
+}
+
+function wireCampaignToggles(container) {
+  container.querySelectorAll('.ad-toggle input').forEach((input) => {
+    input.addEventListener('change', async () => {
+      const row = input.closest('.toggle-row');
+      const campaignId = row.dataset.campaignId;
+      const goingActive = input.checked;
+      const action = goingActive ? 'activate' : 'pause';
+      const { url, pin } = loadPanelConfig();
+      const statusEl = document.getElementById('panelStatus');
+      if (!url || !pin) {
+        statusEl.textContent = 'Falta cargar la URL del panel y el PIN (más abajo, en la tabla de anuncios) y guardar.';
+        input.checked = !goingActive;
+        return;
+      }
+      input.disabled = true;
+      statusEl.textContent = 'Enviando...';
+      try {
+        const res = await fetch(url.replace(/\/$/, '') + '/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin, ad_id: campaignId, action }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        statusEl.textContent = 'Listo: ' + campaignId + ' -> ' + data.status;
         input.checked = data.status === 'ACTIVE';
       } catch (e) {
         statusEl.textContent = 'Error: ' + e.message;
