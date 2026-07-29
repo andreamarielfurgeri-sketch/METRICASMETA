@@ -145,6 +145,24 @@
   cargado en el padrón — esos no se pudieron verificar y no están incluidos en ningún número de este dashboard.
 </p>
 
+<h2>Ventas cerradas por mes: ¿de qué mes son los leads?</h2>
+<div class="table-wrap">
+  <table id="closeMonthTable">
+    <thead>
+      <tr>
+        <th>Mes de cierre</th>
+        <th class="num">Ventas de ese mismo mes</th>
+        <th class="num">Monto</th>
+        <th class="num">Ventas de meses anteriores</th>
+        <th class="num">Monto</th>
+        <th class="num">% de meses anteriores</th>
+      </tr>
+    </thead>
+    <tbody id="closeMonthTableBody"></tbody>
+  </table>
+</div>
+<p class="note">Para cada mes en que se cerró una venta, compara si el lead había entrado ese mismo mes o venía de un mes anterior (leads "viejos" que recién se terminan de cerrar ahora). No depende del filtro de fechas de arriba: siempre muestra el historial completo, mes a mes. Para leads vendidos antes de que empezáramos a guardar la fecha de cierre, se usa la fecha de creación como aproximación.</p>
+
 <h2>Meta Ads (leads con utm_source = meta/facebook, en el rango)</h2>
 <div class="kpi-grid">
   <div class="kpi blue">
@@ -357,6 +375,39 @@ function monthsOverlapping(from, to) {
   months.add(from.slice(0,7));
   months.add(to.slice(0,7));
   return months;
+}
+
+const MONTH_NAMES_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function fmtMonth(m) {
+  const parts = (m || '').split('-');
+  if (parts.length !== 2) return m;
+  const idx = parseInt(parts[1], 10) - 1;
+  return (MONTH_NAMES_ES[idx] || parts[1]) + ' ' + parts[0];
+}
+
+function renderCloseMonthTable() {
+  const body = document.getElementById('closeMonthTableBody');
+  if (!body) return;
+  body.innerHTML = '';
+  const allRows = (typeof CLOSE_MONTH_ROWS !== 'undefined') ? CLOSE_MONTH_ROWS : [];
+  if (allRows.length === 0) {
+    body.innerHTML = '<tr><td colspan="6" class="empty">No hay ventas registradas</td></tr>';
+    return;
+  }
+  const rows = allRows.slice(-6).slice().reverse(); // últimos 6 meses, más reciente primero
+  rows.forEach(([month, same, prev]) => {
+    const totalCount = same[0] + prev[0];
+    const pctPrev = totalCount > 0 ? (prev[0] / totalCount * 100) : 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + fmtMonth(month) + '</td>' +
+      '<td class="num">' + same[0].toLocaleString('es-AR') + '</td>' +
+      '<td class="num">' + fmtMoney(same[1]) + '</td>' +
+      '<td class="num">' + prev[0].toLocaleString('es-AR') + '</td>' +
+      '<td class="num">' + fmtMoney(prev[1]) + '</td>' +
+      '<td class="num">' + (totalCount > 0 ? fmtPct(pctPrev) : '<span class="muted">s/d</span>') + '</td>';
+    body.appendChild(tr);
+  });
 }
 
 function render() {
@@ -642,7 +693,9 @@ function render() {
   document.getElementById('kpi-conversiones-google').textContent = Math.round(googleConv).toLocaleString('es-AR');
   document.getElementById('kpi-costo-conversion-google').innerHTML = googleConv>0 ? fmtMoney(googleSpend/googleConv) : '<span class="muted">s/d</span>';
 
-  ['stageTable','campaignTable','adTable','sourceTable','userTable','vendorAdTable'].forEach(reapplySort);
+  renderCloseMonthTable();
+
+  ['stageTable','campaignTable','adTable','sourceTable','userTable','vendorAdTable','closeMonthTable'].forEach(reapplySort);
 }
 
 // --- Ordenamiento de tablas por columna (clic en encabezado) ---
@@ -714,7 +767,7 @@ function makeSortable(tableId) {
   });
 }
 
-['stageTable','campaignTable','adTable','sourceTable','userTable','vendorAdTable'].forEach(makeSortable);
+['stageTable','campaignTable','adTable','sourceTable','userTable','vendorAdTable','closeMonthTable'].forEach(makeSortable);
 
 const allDates = ROWS.map(r=>r[0]).sort();
 const minDate = allDates[0];
