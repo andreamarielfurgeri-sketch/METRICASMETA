@@ -64,8 +64,10 @@ module.exports = {
 
   // --- Sincronización de audiencia "calidad baja" con Meta (reemplaza al N8N/Railway
   // que dejó de andar en marzo 2026) ---
-  // Etiqueta de Kommo que marca un lead como calidad baja (no contesta / comentario basura).
-  LOW_QUALITY_TAG_NAME: 'COMENTARIO BASURA',
+  // "Calidad baja" en Kommo NO es una etiqueta: es la "razón" que se elige en el
+  // desplegable del status "Otro" del embudo. Se marca "Comentarios basura" tanto si
+  // el lead no contesta como si pregunta algo que no tiene nada que ver (aclarado por Andy).
+  LOW_QUALITY_LOSS_REASONS: ['Comentarios basura'],
   // ID del público personalizado "PUBLICO CALIDAD BAJA" en Meta (Business Manager > Públicos).
   META_LOW_QUALITY_AUDIENCE_ID: '120243460682440717',
 };

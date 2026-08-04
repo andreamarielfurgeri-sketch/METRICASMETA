@@ -9,9 +9,12 @@
 // Salida: array de leads normalizados en outputs/kommo_leads.json
 //   { id, price, status_id, created_at (YYYY-MM-DD), closed_at (YYYY-MM-DD o null),
 //     responsible_user_id, responsible_user_name, utm_source, utm_campaign, utm_content,
-//     tags (array de nombres), phone, email }
-// tags/phone/email se usan para alimentar la audiencia "calidad baja" de Meta
+//     tags (array de nombres), loss_reason (nombre de la razón, o null), phone, email }
+// loss_reason/phone/email se usan para alimentar la audiencia "calidad baja" de Meta
 // (ver sync_meta_audience.js), reemplazando el flujo viejo de N8N/Railway.
+// "Calidad baja" en Kommo NO es una etiqueta: es la "razón" que se elige en el
+// desplegable del status "Otro" del embudo (ej. "Comentarios basura", "Dejo de
+// responder", etc.) — por eso hace falta pedir with=loss_reason a la API.
 
 const fs = require('fs');
 const path = require('path');
@@ -95,7 +98,7 @@ async function fetchLeads(users, contacts) {
 
   while (true) {
     const data = await kommoFetch(
-      `/api/v4/leads?filter[pipeline_id]=${config.KOMMO_PIPELINE_ID}&page=${page}&limit=250&with=custom_fields_values,contacts`
+      `/api/v4/leads?filter[pipeline_id]=${config.KOMMO_PIPELINE_ID}&page=${page}&limit=250&with=custom_fields_values,contacts,loss_reason`
     );
     if (!data || !data._embedded || !data._embedded.leads.length) break;
 
@@ -111,6 +114,10 @@ async function fetchLeads(users, contacts) {
       }
 
       const tags = (lead._embedded && lead._embedded.tags) ? lead._embedded.tags.map((t) => t.name) : [];
+      // Kommo puede devolver loss_reason como objeto único o como array según el
+      // endpoint/versión; se contemplan ambos casos por las dudas.
+      const lr = lead._embedded && lead._embedded.loss_reason;
+      const lossReason = (Array.isArray(lr) ? (lr[0] && lr[0].name) : (lr && lr.name)) || null;
       const leadContacts = (lead._embedded && lead._embedded.contacts) ? lead._embedded.contacts : [];
       const mainContact = leadContacts.find((c) => c.is_main) || leadContacts[0] || null;
       const contactInfo = (mainContact && contacts[mainContact.id]) || {};
@@ -128,6 +135,7 @@ async function fetchLeads(users, contacts) {
         utm_campaign: getCustomFieldValue(lead, config.FIELD_UTM_CAMPAIGN),
         utm_content: getCustomFieldValue(lead, config.FIELD_UTM_CONTENT),
         tags,
+        loss_reason: lossReason,
         phone: contactInfo.phone || null,
         email: contactInfo.email || null,
       });
@@ -154,22 +162,16 @@ async function main() {
   const leads = await fetchLeads(users, contacts);
   console.log(`Total leads procesados: ${leads.length}`);
 
-  // Diagnóstico temporal: para depurar por qué la sincronización de audiencia
-  // "calidad baja" no está encontrando leads con la etiqueta esperada, se listan
-  // acá todas las etiquetas distintas que realmente trae Kommo (con su conteo).
-  // Se puede borrar este bloque una vez confirmado que el nombre de la etiqueta coincide.
-  const tagCounts = {};
-  let leadsWithAnyTag = 0;
+  // Diagnóstico: "calidad baja" en Kommo es la razón elegida en el desplegable del
+  // status "Otro" (loss_reason), no una etiqueta. Se listan las razones distintas
+  // encontradas para confirmar que el nombre configurado en config.js coincide.
+  const reasonCounts = {};
   leads.forEach((lead) => {
-    if (lead.tags && lead.tags.length) leadsWithAnyTag += 1;
-    (lead.tags || []).forEach((t) => {
-      tagCounts[t] = (tagCounts[t] || 0) + 1;
-    });
+    if (lead.loss_reason) reasonCounts[lead.loss_reason] = (reasonCounts[lead.loss_reason] || 0) + 1;
   });
-  console.log(`Leads con al menos 1 etiqueta: ${leadsWithAnyTag} de ${leads.length}.`);
-  const sortedTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
-  console.log(`Etiquetas distintas encontradas (${sortedTags.length}):`);
-  sortedTags.forEach(([tag, count]) => console.log(`  "${tag}": ${count}`));
+  const sortedReasons = Object.entries(reasonCounts).sort((a, b) => b[1] - a[1]);
+  console.log(`Razones ("Otro") distintas encontradas (${sortedReasons.length}):`);
+  sortedReasons.forEach(([reason, count]) => console.log(`  "${reason}": ${count}`));
 
   const outDir = path.join(__dirname, '..', '.data');
   fs.mkdirSync(outDir, { recursive: true });

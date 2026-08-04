@@ -1,8 +1,11 @@
 // sync_meta_audience.js
 // Reemplaza al flujo viejo de N8N/Railway (que dejó de andar en marzo 2026) para
 // mantener actualizado el público "PUBLICO CALIDAD BAJA" de Meta con los leads de
-// Kommo que el equipo etiquetó como calidad baja ("COMENTARIO BASURA"), para que las
-// campañas activas los excluyan y no les vuelva a mostrar el anuncio.
+// Kommo marcados como calidad baja. En Kommo esto NO es una etiqueta: es la "razón"
+// que se elige en el desplegable del status "Otro" del embudo (config.LOW_QUALITY_LOSS_REASONS,
+// por defecto "Comentarios basura" — se usa tanto si el lead no contesta como si
+// pregunta algo que no tiene nada que ver), para que las campañas activas los
+// excluyan y no les vuelva a mostrar el anuncio.
 //
 // No falla el build si algo sale mal acá (igual que Windsor/Google Ads): si Meta
 // rechaza la subida, se loguea el error y se sigue con el resto del dashboard. Revisá
@@ -11,7 +14,7 @@
 // Requiere variables de entorno:
 //   META_SYSTEM_USER_TOKEN  -> mismo token que usa el resto del proyecto (ads_management)
 //
-// Lee: outputs/.data/kommo_leads.json (ya generado por fetch_kommo.js, con tags/phone/email)
+// Lee: outputs/.data/kommo_leads.json (ya generado por fetch_kommo.js, con loss_reason/phone/email)
 // Sube a: Meta Custom Audience (config.META_LOW_QUALITY_AUDIENCE_ID)
 
 const fs = require('fs');
@@ -76,12 +79,12 @@ async function main() {
   }
   const leads = JSON.parse(fs.readFileSync(leadsPath, 'utf-8'));
 
-  const tagName = config.LOW_QUALITY_TAG_NAME.toLowerCase();
+  const reasonSet = new Set(config.LOW_QUALITY_LOSS_REASONS.map((r) => r.toLowerCase().trim()));
   const lowQualityLeads = leads.filter((lead) =>
-    (lead.tags || []).some((t) => (t || '').toLowerCase().trim() === tagName)
+    lead.loss_reason && reasonSet.has(lead.loss_reason.toLowerCase().trim())
   );
 
-  console.log(`Leads etiquetados "${config.LOW_QUALITY_TAG_NAME}": ${lowQualityLeads.length} de ${leads.length} totales.`);
+  console.log(`Leads con razón de calidad baja (${config.LOW_QUALITY_LOSS_REASONS.join(', ')}): ${lowQualityLeads.length} de ${leads.length} totales.`);
 
   const phoneRows = [];
   const emailRows = [];
