@@ -61,4 +61,11 @@ module.exports = {
     'Campaign TechoCompleto Publico General',
     'C MAX REN - TECHO COMPLETO',
   ],
+
+  // --- Sincronización de audiencia "calidad baja" con Meta (reemplaza al N8N/Railway
+  // que dejó de andar en marzo 2026) ---
+  // Etiqueta de Kommo que marca un lead como calidad baja (no contesta / comentario basura).
+  LOW_QUALITY_TAG_NAME: 'COMENTARIO BASURA',
+  // ID del público personalizado "PUBLICO CALIDAD BAJA" en Meta (Business Manager > Públicos).
+  META_LOW_QUALITY_AUDIENCE_ID: '120243460682440717',
 };

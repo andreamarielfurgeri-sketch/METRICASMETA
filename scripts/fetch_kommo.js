@@ -8,7 +8,10 @@
 //
 // Salida: array de leads normalizados en outputs/kommo_leads.json
 //   { id, price, status_id, created_at (YYYY-MM-DD), closed_at (YYYY-MM-DD o null),
-//     responsible_user_id, responsible_user_name, utm_source, utm_campaign, utm_content }
+//     responsible_user_id, responsible_user_name, utm_source, utm_campaign, utm_content,
+//     tags (array de nombres), phone, email }
+// tags/phone/email se usan para alimentar la audiencia "calidad baja" de Meta
+// (ver sync_meta_audience.js), reemplazando el flujo viejo de N8N/Railway.
 
 const fs = require('fs');
 const path = require('path');
@@ -55,18 +58,44 @@ function getCustomFieldValue(lead, fieldId) {
   return cf.values[0].value;
 }
 
+function getFieldValueByCode(entity, fieldCode) {
+  const cf = (entity.custom_fields_values || []).find((f) => f.field_code === fieldCode);
+  if (!cf || !cf.values || !cf.values.length) return null;
+  return cf.values[0].value;
+}
+
 function toDateStr(unixSeconds) {
   return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
 }
 
-async function fetchLeads(users) {
+// Trae todos los contactos (con teléfono/email) para poder cruzarlos con los leads.
+// Se usa para armar la audiencia "calidad baja" de Meta (sync_meta_audience.js).
+async function fetchContacts() {
+  const contacts = {}; // id -> { phone, email }
+  let page = 1;
+  while (true) {
+    const data = await kommoFetch(`/api/v4/contacts?page=${page}&limit=250&with=custom_fields_values`);
+    if (!data || !data._embedded || !data._embedded.contacts.length) break;
+    data._embedded.contacts.forEach((c) => {
+      contacts[c.id] = {
+        phone: getFieldValueByCode(c, 'PHONE'),
+        email: getFieldValueByCode(c, 'EMAIL'),
+      };
+    });
+    if (!data._links || !data._links.next) break;
+    page += 1;
+  }
+  return contacts;
+}
+
+async function fetchLeads(users, contacts) {
   const leads = [];
   let page = 1;
   const excludeSet = new Set(config.EXCLUDE_LEAD_IDS);
 
   while (true) {
     const data = await kommoFetch(
-      `/api/v4/leads?filter[pipeline_id]=${config.KOMMO_PIPELINE_ID}&page=${page}&limit=250&with=custom_fields_values`
+      `/api/v4/leads?filter[pipeline_id]=${config.KOMMO_PIPELINE_ID}&page=${page}&limit=250&with=custom_fields_values,contacts`
     );
     if (!data || !data._embedded || !data._embedded.leads.length) break;
 
@@ -81,6 +110,11 @@ async function fetchLeads(users) {
         return; // precio anómalo, se excluye (task #27)
       }
 
+      const tags = (lead._embedded && lead._embedded.tags) ? lead._embedded.tags.map((t) => t.name) : [];
+      const leadContacts = (lead._embedded && lead._embedded.contacts) ? lead._embedded.contacts : [];
+      const mainContact = leadContacts.find((c) => c.is_main) || leadContacts[0] || null;
+      const contactInfo = (mainContact && contacts[mainContact.id]) || {};
+
       leads.push({
         id: lead.id,
         price,
@@ -93,6 +127,9 @@ async function fetchLeads(users) {
         utm_source: getCustomFieldValue(lead, config.FIELD_UTM_SOURCE),
         utm_campaign: getCustomFieldValue(lead, config.FIELD_UTM_CAMPAIGN),
         utm_content: getCustomFieldValue(lead, config.FIELD_UTM_CONTENT),
+        tags,
+        phone: contactInfo.phone || null,
+        email: contactInfo.email || null,
       });
     });
 
@@ -109,8 +146,12 @@ async function main() {
   const users = await fetchUsers();
   console.log(`  ${Object.keys(users).length} usuarios.`);
 
+  console.log('Trayendo contactos de Kommo (teléfono/email, para la audiencia de calidad baja)...');
+  const contacts = await fetchContacts();
+  console.log(`  ${Object.keys(contacts).length} contactos.`);
+
   console.log('Trayendo leads de Kommo (esto puede tardar unos minutos)...');
-  const leads = await fetchLeads(users);
+  const leads = await fetchLeads(users, contacts);
   console.log(`Total leads procesados: ${leads.length}`);
 
   const outDir = path.join(__dirname, '..', '.data');
