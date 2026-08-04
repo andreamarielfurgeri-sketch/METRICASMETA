@@ -154,6 +154,23 @@ async function main() {
   const leads = await fetchLeads(users, contacts);
   console.log(`Total leads procesados: ${leads.length}`);
 
+  // Diagnóstico temporal: para depurar por qué la sincronización de audiencia
+  // "calidad baja" no está encontrando leads con la etiqueta esperada, se listan
+  // acá todas las etiquetas distintas que realmente trae Kommo (con su conteo).
+  // Se puede borrar este bloque una vez confirmado que el nombre de la etiqueta coincide.
+  const tagCounts = {};
+  let leadsWithAnyTag = 0;
+  leads.forEach((lead) => {
+    if (lead.tags && lead.tags.length) leadsWithAnyTag += 1;
+    (lead.tags || []).forEach((t) => {
+      tagCounts[t] = (tagCounts[t] || 0) + 1;
+    });
+  });
+  console.log(`Leads con al menos 1 etiqueta: ${leadsWithAnyTag} de ${leads.length}.`);
+  const sortedTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+  console.log(`Etiquetas distintas encontradas (${sortedTags.length}):`);
+  sortedTags.forEach(([tag, count]) => console.log(`  "${tag}": ${count}`));
+
   const outDir = path.join(__dirname, '..', '.data');
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, 'kommo_leads.json'), JSON.stringify(leads));
