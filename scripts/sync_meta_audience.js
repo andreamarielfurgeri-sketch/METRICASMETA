@@ -66,9 +66,15 @@ async function graphGetAllPages(pathAndQuery) {
   return results;
 }
 
+// Chequea los conjuntos de anuncios ACTIVOS de la cuenta y, si alguno no tiene
+// excluido el público "PUBLICO CALIDAD BAJA" en su segmentación, se lo agrega vía
+// la API (POST /{adset_id} con el mismo objeto "targeting" que ya tenía, sumando
+// nuestra audiencia a excluded_custom_audiences — así no se toca nada más de la
+// segmentación existente). No rompe el build si falla: cada conjunto se actualiza
+// por separado, así que un error en uno no afecta a los demás.
 async function checkExclusionCoverage() {
   if (!AD_ACCOUNT_ID) {
-    console.log('(META_AD_ACCOUNT_ID no configurado, se omite el chequeo de exclusion por conjunto de anuncios.)');
+    console.log('(META_AD_ACCOUNT_ID no configurado, se omite el chequeo de exclusión por conjunto de anuncios.)');
     return;
   }
   try {
@@ -77,38 +83,66 @@ async function checkExclusionCoverage() {
       'name',
       'effective_status',
       'campaign{id,name,effective_status}',
-      'targeting{excluded_custom_audiences}',
-      ].join(',');
+      'targeting',
+    ].join(',');
     const adsets = await graphGetAllPages(
       `/${AD_ACCOUNT_ID}/adsets?fields=${fields}&limit=200&access_token=${TOKEN}`
-      );
-
+    );
     const active = adsets.filter((a) => a.effective_status === 'ACTIVE');
     console.log('');
-    console.log(`Chequeo de exclusion - conjuntos de anuncios ACTIVOS: ${active.length} de ${adsets.length} totales.`);
+    console.log(`Chequeo de exclusión — conjuntos de anuncios ACTIVOS: ${active.length} de ${adsets.length} totales.`);
 
-    const withExclusion = [];
-    const withoutExclusion = [];
+    const alreadyOk = [];
+    const toFix = [];
     active.forEach((a) => {
       const excludedIds = ((a.targeting && a.targeting.excluded_custom_audiences) || []).map((x) => x.id);
       const campName = a.campaign ? a.campaign.name : '(sin campaña)';
       const line = `  [${campName}] ${a.name} (adset ${a.id})`;
       if (excludedIds.includes(config.META_LOW_QUALITY_AUDIENCE_ID)) {
-        withExclusion.push(line);
+        alreadyOk.push(line);
       } else {
-        withoutExclusion.push(line);
+        toFix.push(a);
       }
     });
 
-    console.log(`SI excluyen "PUBLICO CALIDAD BAJA" (${withExclusion.length}):`);
-    withExclusion.forEach((l) => console.log(l));
-    console.log(`NO excluyen "PUBLICO CALIDAD BAJA" (${withoutExclusion.length}):`);
-    withoutExclusion.forEach((l) => console.log(l));
+    console.log(`SÍ excluían "PUBLICO CALIDAD BAJA" ya de antes (${alreadyOk.length}):`);
+    alreadyOk.forEach((l) => console.log(l));
+    console.log(`NO excluían "PUBLICO CALIDAD BAJA" — se les agrega ahora por API (${toFix.length}):`);
+
+    let fixedCount = 0;
+    let failedCount = 0;
+    for (const a of toFix) {
+      const campName = a.campaign ? a.campaign.name : '(sin campaña)';
+      const label = `  [${campName}] ${a.name} (adset ${a.id})`;
+      const targeting = a.targeting || {};
+      const excluded = targeting.excluded_custom_audiences || [];
+      const newTargeting = {
+        ...targeting,
+        excluded_custom_audiences: [...excluded, { id: config.META_LOW_QUALITY_AUDIENCE_ID }],
+      };
+      try {
+        const url = `https://graph.facebook.com/${GRAPH_VERSION}/${a.id}`;
+        const body = new URLSearchParams({
+          targeting: JSON.stringify(newTargeting),
+          access_token: TOKEN,
+        });
+        const res = await fetch(url, { method: 'POST', body });
+        const json = await res.json();
+        if (json.error) {
+          throw new Error(JSON.stringify(json.error));
+        }
+        fixedCount += 1;
+        console.log(`${label} -> agregada OK.`);
+      } catch (err) {
+        failedCount += 1;
+        console.log(`${label} -> ERROR: ${err.message}`);
+      }
+    }
+    console.log(`Exclusión agregada en ${fixedCount} de ${toFix.length} conjuntos que la necesitaban (${failedCount} con error).`);
   } catch (err) {
-    console.error('No se pudo chequear la exclusion por conjunto de anuncios (no rompe el resto del dashboard):', err.message);
+    console.error('No se pudo chequear/corregir la exclusión por conjunto de anuncios (no rompe el resto del dashboard):', err.message);
   }
 }
-
 
 async function uploadBatch(audienceId, schema, rows) {
   if (rows.length === 0) return { num_received: 0 };
