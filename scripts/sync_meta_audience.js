@@ -205,6 +205,23 @@ async function createLookalikeIfNeeded() {
   }
 }
 
+// Chequeo puntual (temporal): tamaño actual de los públicos de calidad alta y su
+// Lookalike, para saber si ya terminaron de "matchear" en Meta (tarda unas horas).
+async function checkAudienceSizes() {
+  const ids = [config.META_HIGH_QUALITY_AUDIENCE_ID, config.META_LOOKALIKE_AUDIENCE_ID].filter(Boolean);
+  for (const id of ids) {
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/${GRAPH_VERSION}/${id}?fields=name,approximate_count_lower_bound,approximate_count_upper_bound,operation_status,delivery_status&access_token=${TOKEN}`
+      );
+      const json = await res.json();
+      console.log(`Tamaño de "${json.name || id}": ${JSON.stringify(json)}`);
+    } catch (err) {
+      console.log(`No se pudo chequear tamaño de ${id}: ${err.message}`);
+    }
+  }
+}
+
 async function uploadBatch(audienceId, schema, rows) {
   if (rows.length === 0) return { num_received: 0 };
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/${audienceId}/users`;
@@ -229,6 +246,7 @@ async function main() {
   await checkExclusionCoverage();
   await createHighQualityAudienceIfNeeded();
   await createLookalikeIfNeeded();
+  await checkAudienceSizes();
 
 const leadsPath = path.join(DATA_DIR, 'kommo_leads.json');
   if (!fs.existsSync(leadsPath)) {
