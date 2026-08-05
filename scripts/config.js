@@ -82,5 +82,7 @@ module.exports = {
   META_HIGH_QUALITY_AUDIENCE_ID: '120251517172690717',
   // ID del público Lookalike generado a partir del de calidad alta. Se completa una
   // vez creado (evita que se cree uno nuevo cada día).
-  META_LOOKALIKE_AUDIENCE_ID: null,
+  // Creado automáticamente el 2026-08-05 vía createLookalikeIfNeeded() en
+  // sync_meta_audience.js (1% Argentina, semilla: PUBLICO CALIDAD ALTA).
+  META_LOOKALIKE_AUDIENCE_ID: '120251517960320717',
 };
