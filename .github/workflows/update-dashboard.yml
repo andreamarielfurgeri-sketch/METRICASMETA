@@ -30,6 +30,7 @@ jobs:
       - name: Sincronizar audiencia "calidad baja" en Meta (reemplaza N8N/Railway)
         env:
           META_SYSTEM_USER_TOKEN: ${{ secrets.META_SYSTEM_USER_TOKEN }}
+          META_AD_ACCOUNT_ID: ${{ secrets.META_AD_ACCOUNT_ID }}
         run: node scripts/sync_meta_audience.js
 
       - name: Traer gasto de Meta (Graph API)
