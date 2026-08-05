@@ -85,4 +85,9 @@ module.exports = {
   // Creado automáticamente el 2026-08-05 vía createLookalikeIfNeeded() en
   // sync_meta_audience.js (1% Argentina, semilla: PUBLICO CALIDAD ALTA).
   META_LOOKALIKE_AUDIENCE_ID: '120251517960320717',
+
+  // --- Conexión del Lookalike (señal de targeting) en conjuntos de anuncios activos ---
+  // Conjuntos que se dejan afuera a propósito al conectar el Lookalike (pedido de Andy).
+  // TIMAT - CP: no debe recibir esta señal.
+  LOOKALIKE_EXCLUDE_ADSET_IDS: ['120251382012950717'], // TIMAT - CP
 };
