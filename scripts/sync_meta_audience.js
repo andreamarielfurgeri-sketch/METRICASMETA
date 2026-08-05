@@ -144,6 +144,34 @@ async function checkExclusionCoverage() {
   }
 }
 
+// Chequeo puntual (temporal, para diagnóstico): confirma si nuestro token tiene
+// acceso al "conjunto de datos" de Meta 930032456434329 (Events Manager / Conversions
+// API, mencionado por Andy como "KOMMO EMPORIO LEADS") y si está recibiendo eventos.
+// Es un objeto distinto de las Custom Audiences — no se usa en el resto de este
+// script. Se puede borrar este bloque una vez confirmado.
+async function checkDatasetAccess() {
+  const DATASET_ID = '930032456434329';
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${DATASET_ID}?fields=name,description,creation_time,data_sources,usage&access_token=${TOKEN}`
+    );
+    const json = await res.json();
+    console.log('');
+    if (json.error) {
+      console.log(`Chequeo dataset ${DATASET_ID}: SIN ACCESO — ${JSON.stringify(json.error)}`);
+    } else {
+      console.log(`Chequeo dataset ${DATASET_ID}: acceso OK.`);
+      console.log(`  name: ${json.name}`);
+      console.log(`  description: ${json.description || '(sin descripción)'}`);
+      console.log(`  creation_time: ${json.creation_time}`);
+      console.log(`  data_sources: ${JSON.stringify(json.data_sources)}`);
+      console.log(`  usage: ${JSON.stringify(json.usage)}`);
+    }
+  } catch (err) {
+    console.log(`Chequeo dataset ${DATASET_ID}: error de red — ${err.message}`);
+  }
+}
+
 async function uploadBatch(audienceId, schema, rows) {
   if (rows.length === 0) return { num_received: 0 };
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/${audienceId}/users`;
@@ -166,6 +194,7 @@ async function main() {
     return;
   }
   await checkExclusionCoverage();
+  await checkDatasetAccess();
 
 const leadsPath = path.join(DATA_DIR, 'kommo_leads.json');
   if (!fs.existsSync(leadsPath)) {
