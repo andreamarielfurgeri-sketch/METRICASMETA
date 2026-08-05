@@ -77,5 +77,7 @@ module.exports = {
   // para el público similar (Lookalike) de Meta. ID se completa una vez creado el
   // público en Meta (ver sync_meta_audience.js).
   HIGH_QUALITY_STAGE_INDEX: 4,
-  META_HIGH_QUALITY_AUDIENCE_ID: null,
+  // ID del público personalizado "PUBLICO CALIDAD ALTA" en Meta, creado automáticamente
+  // el 2026-08-05 vía createHighQualityAudienceIfNeeded() en sync_meta_audience.js.
+  META_HIGH_QUALITY_AUDIENCE_ID: '120251517172690717',
 };
