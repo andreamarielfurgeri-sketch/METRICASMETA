@@ -70,4 +70,12 @@ module.exports = {
   LOW_QUALITY_LOSS_REASONS: ['Comentarios basura'],
   // ID del público personalizado "PUBLICO CALIDAD BAJA" en Meta (Business Manager > Públicos).
   META_LOW_QUALITY_AUDIENCE_ID: '120243460682440717',
+
+  // --- Público "calidad alta" (semilla para Lookalike) ---
+  // Los leads que llegaron a la etapa "Venta" (stage_index 4, ganados) se suben a
+  // este público todos los días, igual que el de calidad baja. Se usa como semilla
+  // para el público similar (Lookalike) de Meta. ID se completa una vez creado el
+  // público en Meta (ver sync_meta_audience.js).
+  HIGH_QUALITY_STAGE_INDEX: 4,
+  META_HIGH_QUALITY_AUDIENCE_ID: null,
 };
