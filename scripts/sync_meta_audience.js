@@ -205,20 +205,64 @@ async function createLookalikeIfNeeded() {
   }
 }
 
-// Chequeo puntual (temporal): tamaño actual de los públicos de calidad alta y su
-// Lookalike, para saber si ya terminaron de "matchear" en Meta (tarda unas horas).
-async function checkAudienceSizes() {
-  const ids = [config.META_HIGH_QUALITY_AUDIENCE_ID, config.META_LOOKALIKE_AUDIENCE_ID].filter(Boolean);
-  for (const id of ids) {
-    try {
-      const res = await fetch(
-        `https://graph.facebook.com/${GRAPH_VERSION}/${id}?fields=name,approximate_count_lower_bound,approximate_count_upper_bound,operation_status,delivery_status&access_token=${TOKEN}`
-      );
-      const json = await res.json();
-      console.log(`Tamaño de "${json.name || id}": ${JSON.stringify(json)}`);
-    } catch (err) {
-      console.log(`No se pudo chequear tamaño de ${id}: ${err.message}`);
+// Conecta el público Lookalike (calidad alta) como señal de targeting en los conjuntos de
+// anuncios activos que todavía no lo tienen. Se dejan afuera a propósito los conjuntos en
+// config.LOOKALIKE_EXCLUDE_ADSET_IDS (pedido de Andy, ej. TIMAT). Al ser Advantage+ audience,
+// esto no restringe el targeting: es una señal para que Meta priorice gente similar a los
+// leads en etapa "Venta" (ganados). Se puede correr todos los días: no vuelve a tocar los
+// conjuntos que ya lo tienen conectado.
+async function checkLookalikeSignalCoverage() {
+  if (!AD_ACCOUNT_ID) {
+    console.log('(META_AD_ACCOUNT_ID no configurado, se omite la conexión del Lookalike a los conjuntos de anuncios.)');
+    return;
+  }
+  if (!config.META_LOOKALIKE_AUDIENCE_ID) {
+    console.log('(META_LOOKALIKE_AUDIENCE_ID no configurado todavía, se omite la conexión del Lookalike.)');
+    return;
+  }
+  try {
+    const fields = ['id','name','effective_status','campaign{id,name,effective_status}','targeting'].join(',');
+    const adsets = await graphGetAllPages(`/${AD_ACCOUNT_ID}/adsets?fields=${fields}&limit=200&access_token=${TOKEN}`);
+    const excludeIds = config.LOOKALIKE_EXCLUDE_ADSET_IDS || [];
+    const active = adsets.filter((a) => a.effective_status === 'ACTIVE' && !excludeIds.includes(a.id));
+    const alreadyOk = [];
+    const toFix = [];
+    active.forEach((a) => {
+      const includedIds = ((a.targeting && a.targeting.custom_audiences) || []).map((x) => x.id);
+      if (includedIds.includes(config.META_LOOKALIKE_AUDIENCE_ID)) {
+        alreadyOk.push(a);
+      } else {
+        toFix.push(a);
+      }
+    });
+    console.log(`Conexión del Lookalike (señal de targeting) — conjuntos activos elegibles: ${active.length} (excluidos a propósito: ${excludeIds.length}).`);
+    console.log(`Ya tenían el Lookalike conectado (${alreadyOk.length}).`);
+    console.log(`No lo tenían — se agrega ahora por API (${toFix.length}):`);
+    toFix.forEach((a) => {
+      console.log(`  [${(a.campaign && a.campaign.name) || '?'}] ${a.name} (adset ${a.id})`);
+    });
+
+    let fixedCount = 0;
+    let failedCount = 0;
+    for (const a of toFix) {
+      const targeting = a.targeting || {};
+      const included = targeting.custom_audiences || [];
+      const newTargeting = { ...targeting, custom_audiences: [...included, { id: config.META_LOOKALIKE_AUDIENCE_ID }] };
+      try {
+        const url = `https://graph.facebook.com/${GRAPH_VERSION}/${a.id}`;
+        const body = new URLSearchParams({ targeting: JSON.stringify(newTargeting), access_token: TOKEN });
+        const res = await fetch(url, { method: 'POST', body });
+        const json = await res.json();
+        if (json.error) throw new Error(JSON.stringify(json.error));
+        fixedCount += 1;
+      } catch (err) {
+        failedCount += 1;
+        console.log(`  Error conectando Lookalike en adset ${a.id}: ${err.message}`);
+      }
     }
+    console.log(`Lookalike conectado en ${fixedCount} de ${toFix.length} conjuntos que lo necesitaban (${failedCount} con error).`);
+  } catch (err) {
+    console.error('No se pudo chequear/conectar el Lookalike a los conjuntos de anuncios:', err.message);
   }
 }
 
@@ -246,7 +290,7 @@ async function main() {
   await checkExclusionCoverage();
   await createHighQualityAudienceIfNeeded();
   await createLookalikeIfNeeded();
-  await checkAudienceSizes();
+  await checkLookalikeSignalCoverage();
 
 const leadsPath = path.join(DATA_DIR, 'kommo_leads.json');
   if (!fs.existsSync(leadsPath)) {
