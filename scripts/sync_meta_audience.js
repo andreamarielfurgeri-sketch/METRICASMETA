@@ -144,6 +144,39 @@ async function checkExclusionCoverage() {
   }
 }
 
+// Paso único (temporal): crea el público "PUBLICO CALIDAD ALTA" en Meta si todavía
+// no existe (config.META_HIGH_QUALITY_AUDIENCE_ID vacío). El ID que devuelve Meta
+// hay que copiarlo a mano a config.js una sola vez. Se puede borrar este bloque
+// (y su llamada en main) una vez que el ID ya esté en config.js.
+async function createHighQualityAudienceIfNeeded() {
+  if (config.META_HIGH_QUALITY_AUDIENCE_ID) return;
+  if (!AD_ACCOUNT_ID) {
+    console.log('(META_AD_ACCOUNT_ID no configurado, no se puede crear el público de calidad alta.)');
+    return;
+  }
+  try {
+    const url = `https://graph.facebook.com/${GRAPH_VERSION}/${AD_ACCOUNT_ID}/customaudiences`;
+    const body = new URLSearchParams({
+      name: 'PUBLICO CALIDAD ALTA',
+      description: 'Leads de Kommo en etapa Venta (ganados) - semilla para Lookalike. Generado automáticamente.',
+      subtype: 'CUSTOM',
+      customer_file_source: 'USER_PROVIDED_ONLY',
+      access_token: TOKEN,
+    });
+    const res = await fetch(url, { method: 'POST', body });
+    const json = await res.json();
+    console.log('');
+    if (json.error) {
+      console.log(`No se pudo crear el público de calidad alta: ${JSON.stringify(json.error)}`);
+    } else {
+      console.log(`Público "PUBLICO CALIDAD ALTA" creado. ID: ${json.id}`);
+      console.log('  >>> COPIAR ESTE ID a config.js en META_HIGH_QUALITY_AUDIENCE_ID <<<');
+    }
+  } catch (err) {
+    console.log(`Error creando público de calidad alta: ${err.message}`);
+  }
+}
+
 async function uploadBatch(audienceId, schema, rows) {
   if (rows.length === 0) return { num_received: 0 };
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/${audienceId}/users`;
@@ -166,6 +199,7 @@ async function main() {
     return;
   }
   await checkExclusionCoverage();
+  await createHighQualityAudienceIfNeeded();
 
 const leadsPath = path.join(DATA_DIR, 'kommo_leads.json');
   if (!fs.existsSync(leadsPath)) {
@@ -212,6 +246,46 @@ try {
 } catch (err) {
   console.error('No se pudo sincronizar la audiencia de calidad baja (no rompe el resto del dashboard):', err.message);
 }
+  // --- Público "calidad alta" (semilla del Lookalike) ---
+  if (!config.META_HIGH_QUALITY_AUDIENCE_ID) {
+    console.log('(META_HIGH_QUALITY_AUDIENCE_ID no configurado todavía, se omite la sincronización de audiencia de calidad alta.)');
+    return;
+  }
+
+  const highQualityLeads = leads.filter((lead) => lead.stage_index === config.HIGH_QUALITY_STAGE_INDEX);
+  console.log(`Leads en etapa "Venta" (calidad alta, semilla del Lookalike): ${highQualityLeads.length} de ${leads.length} totales.`);
+
+  const hqPhoneRows = [];
+  const hqEmailRows = [];
+  highQualityLeads.forEach((lead) => {
+    const phone = normalizePhone(lead.phone);
+    const email = normalizeEmail(lead.email);
+    if (phone) hqPhoneRows.push([sha256(phone)]);
+    if (email) hqEmailRows.push([sha256(email)]);
+  });
+
+  console.log(`  con teléfono utilizable: ${hqPhoneRows.length}`);
+  console.log(`  con email utilizable: ${hqEmailRows.length}`);
+
+  if (hqPhoneRows.length === 0 && hqEmailRows.length === 0) {
+    console.log('Nada para subir a Meta (ningún lead de calidad alta tiene teléfono o email cargado).');
+    return;
+  }
+
+  try {
+    const hqAudienceId = config.META_HIGH_QUALITY_AUDIENCE_ID;
+    if (hqPhoneRows.length > 0) {
+      const r = await uploadBatch(hqAudienceId, ['PHONE'], hqPhoneRows);
+      console.log(`Calidad alta — subido por teléfono: num_received=${r.num_received}`);
+    }
+    if (hqEmailRows.length > 0) {
+      const r = await uploadBatch(hqAudienceId, ['EMAIL'], hqEmailRows);
+      console.log(`Calidad alta — subido por email: num_received=${r.num_received}`);
+    }
+    console.log('Sincronización de audiencia "calidad alta" completa.');
+  } catch (err) {
+    console.error('No se pudo sincronizar la audiencia de calidad alta (no rompe el resto del dashboard):', err.message);
+  }
 }
 
 main().catch((err) => {
