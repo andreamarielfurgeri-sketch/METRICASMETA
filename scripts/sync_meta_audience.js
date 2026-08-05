@@ -22,6 +22,7 @@ const path = require('path');
 const crypto = require('crypto');
 const config = require('./config');
 
+const AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID;
 const TOKEN = process.env.META_SYSTEM_USER_TOKEN;
 const GRAPH_VERSION = 'v21.0';
 const DATA_DIR = path.join(__dirname, '..', '.data');
