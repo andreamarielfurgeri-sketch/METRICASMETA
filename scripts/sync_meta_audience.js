@@ -144,52 +144,6 @@ async function checkExclusionCoverage() {
   }
 }
 
-// Chequeo puntual (temporal, para diagnóstico): confirma si nuestro token tiene
-// acceso al "conjunto de datos" de Meta 930032456434329 (Events Manager / Conversions
-// API, mencionado por Andy como "KOMMO EMPORIO LEADS") y si está recibiendo eventos.
-// Es un objeto distinto de las Custom Audiences — no se usa en el resto de este
-// script. Se puede borrar este bloque una vez confirmado.
-async function checkDatasetAccess() {
-  const DATASET_ID = '930032456434329';
-  try {
-    const res = await fetch(
-      `https://graph.facebook.com/${GRAPH_VERSION}/${DATASET_ID}?access_token=${TOKEN}`
-    );
-    const json = await res.json();
-    console.log('');
-    if (json.error) {
-      console.log(`Chequeo dataset ${DATASET_ID}: SIN ACCESO — ${JSON.stringify(json.error)}`);
-    } else {
-      console.log(`Chequeo dataset ${DATASET_ID}: acceso OK. Respuesta completa:`);
-      console.log(JSON.stringify(json));
-    }
-    // Segundo intento: pedirle explícitamente los campos típicos de un dataset de
-    // Events Manager (Conversions API), a ver si el objeto responde a ese tipo.
-    try {
-      const res2 = await fetch(
-        `https://graph.facebook.com/${GRAPH_VERSION}/${DATASET_ID}?fields=id,name,description,creation_time&access_token=${TOKEN}`
-      );
-      const json2 = await res2.json();
-      console.log(`Chequeo dataset ${DATASET_ID} (fields id,name,description,creation_time): ${JSON.stringify(json2)}`);
-    } catch (err2) {
-      console.log(`Segundo intento falló: ${err2.message}`);
-    }
-    // Tercer intento: ver si es un Custom Audience / Product Catalog / Business, probando el
-    // endpoint de "stats" típico de datasets de Conversions API.
-    try {
-      const res3 = await fetch(
-        `https://graph.facebook.com/${GRAPH_VERSION}/${DATASET_ID}/stats?access_token=${TOKEN}`
-      );
-      const json3 = await res3.json();
-      console.log(`Chequeo dataset ${DATASET_ID}/stats: ${JSON.stringify(json3).slice(0, 500)}`);
-    } catch (err3) {
-      console.log(`Tercer intento falló: ${err3.message}`);
-    }
-  } catch (err) {
-    console.log(`Chequeo dataset ${DATASET_ID}: error de red — ${err.message}`);
-  }
-}
-
 async function uploadBatch(audienceId, schema, rows) {
   if (rows.length === 0) return { num_received: 0 };
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/${audienceId}/users`;
@@ -212,7 +166,6 @@ async function main() {
     return;
   }
   await checkExclusionCoverage();
-  await checkDatasetAccess();
 
 const leadsPath = path.join(DATA_DIR, 'kommo_leads.json');
   if (!fs.existsSync(leadsPath)) {
