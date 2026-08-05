@@ -177,6 +177,34 @@ async function createHighQualityAudienceIfNeeded() {
   }
 }
 
+// Paso único (temporal): crea el público Lookalike a partir de "PUBLICO CALIDAD
+// ALTA". Se puede borrar este bloque (y su llamada en main) una vez creado.
+async function createLookalikeIfNeeded() {
+  if (!config.META_HIGH_QUALITY_AUDIENCE_ID || !AD_ACCOUNT_ID) return;
+  if (config.META_LOOKALIKE_AUDIENCE_ID) return; // ya creado, no crear otro cada día
+  try {
+    const url = `https://graph.facebook.com/${GRAPH_VERSION}/${AD_ACCOUNT_ID}/customaudiences`;
+    const body = new URLSearchParams({
+      name: 'PUBLICO SIMILAR CALIDAD ALTA (1% AR)',
+      description: 'Lookalike de PUBLICO CALIDAD ALTA (leads en etapa Venta). Generado automáticamente.',
+      subtype: 'LOOKALIKE',
+      origin_audience_id: config.META_HIGH_QUALITY_AUDIENCE_ID,
+      lookalike_spec: JSON.stringify({ type: 'similarity', country: 'AR', ratio: 0.01 }),
+      access_token: TOKEN,
+    });
+    const res = await fetch(url, { method: 'POST', body });
+    const json = await res.json();
+    console.log('');
+    if (json.error) {
+      console.log(`No se pudo crear el Lookalike: ${JSON.stringify(json.error)}`);
+    } else {
+      console.log(`Lookalike "PUBLICO SIMILAR CALIDAD ALTA (1% AR)" creado. ID: ${json.id}`);
+    }
+  } catch (err) {
+    console.log(`Error creando Lookalike: ${err.message}`);
+  }
+}
+
 async function uploadBatch(audienceId, schema, rows) {
   if (rows.length === 0) return { num_received: 0 };
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/${audienceId}/users`;
@@ -200,6 +228,7 @@ async function main() {
   }
   await checkExclusionCoverage();
   await createHighQualityAudienceIfNeeded();
+  await createLookalikeIfNeeded();
 
 const leadsPath = path.join(DATA_DIR, 'kommo_leads.json');
   if (!fs.existsSync(leadsPath)) {
