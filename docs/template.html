@@ -83,6 +83,48 @@
 </style>
 </head>
 <body>
+<div id="auth-gate" style="position:fixed;inset:0;z-index:99999;background:#0f1420;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <form id="auth-form" style="background:#161d2e;padding:32px;border-radius:12px;width:300px;border:1px solid #2a3550;">
+    <h2 style="margin:0 0 6px;font-size:18px;color:#e8ecf5;">Dashboard ROI</h2>
+    <p style="margin:0 0 18px;font-size:13px;color:#9aa5bf;">Emporio de la Chapa</p>
+    <input id="auth-email" type="email" placeholder="Email" required autocomplete="username" style="width:100%;padding:10px;margin-bottom:10px;border-radius:6px;border:1px solid #2a3550;background:#0f1420;color:#e8ecf5;box-sizing:border-box;">
+    <input id="auth-password" type="password" placeholder="Contraseña" required autocomplete="current-password" style="width:100%;padding:10px;margin-bottom:16px;border-radius:6px;border:1px solid #2a3550;background:#0f1420;color:#e8ecf5;box-sizing:border-box;">
+    <button type="submit" style="width:100%;padding:10px;border-radius:6px;border:none;background:#8b7ce8;color:#fff;font-weight:600;cursor:pointer;font-size:14px;">Entrar</button>
+    <p id="auth-error" style="color:#e34948;font-size:13px;margin:10px 0 0;display:none;"></p>
+  </form>
+</div>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script>
+(function () {
+  var firebaseConfig = {
+    apiKey: "AIzaSyB-2h3TAs7KvTpNeOyivXjuSoGWd1-w0IM",
+    authDomain: "planificador-reels.firebaseapp.com",
+    projectId: "planificador-reels",
+    storageBucket: "planificador-reels.firebasestorage.app",
+    messagingSenderId: "219720801828",
+    appId: "1:219720801828:web:875a0f1d8001194c41c2b1"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var gate = document.getElementById('auth-gate');
+  var form = document.getElementById('auth-form');
+  var errorEl = document.getElementById('auth-error');
+  firebase.auth().onAuthStateChanged(function (user) {
+    gate.style.display = user ? 'none' : 'flex';
+  });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    errorEl.style.display = 'none';
+    var email = document.getElementById('auth-email').value;
+    var password = document.getElementById('auth-password').value;
+    firebase.auth().signInWithEmailAndPassword(email, password).catch(function () {
+      errorEl.textContent = 'Usuario o contraseña incorrectos.';
+      errorEl.style.display = 'block';
+    });
+  });
+})();
+</script>
+
 
 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
   <div>
