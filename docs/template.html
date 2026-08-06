@@ -95,6 +95,7 @@
 </div>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script>
 (function () {
   var firebaseConfig = {
@@ -106,19 +107,46 @@
     appId: "1:219720801828:web:875a0f1d8001194c41c2b1"
   };
   firebase.initializeApp(firebaseConfig);
+  var EMPRESA_ID = 'o7kjN3lpxsj9zSoqy0HW';
   var gate = document.getElementById('auth-gate');
   var form = document.getElementById('auth-form');
   var errorEl = document.getElementById('auth-error');
+  var db = firebase.firestore();
+
+  function denyAccess(msg) {
+    gate.style.display = 'flex';
+    errorEl.textContent = msg;
+    errorEl.style.display = 'block';
+    firebase.auth().signOut();
+  }
+
   firebase.auth().onAuthStateChanged(function (user) {
-    gate.style.display = user ? 'none' : 'flex';
+    if (!user) {
+      gate.style.display = 'flex';
+      return;
+    }
+    db.collection('users').doc(user.uid).get().then(function (snap) {
+      var data = snap.exists ? snap.data() : null;
+      var role = data && data.role;
+      var roiEmpresas = (data && data.roiEmpresas) || [];
+      var permitido = role === 'admin' || roiEmpresas.indexOf(EMPRESA_ID) !== -1;
+      if (permitido) {
+        gate.style.display = 'none';
+      } else {
+        denyAccess('Tu usuario no tiene acceso a este dashboard.');
+      }
+    }).catch(function () {
+      denyAccess('No se pudo verificar tu acceso. Proba de nuevo.');
+    });
   });
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     errorEl.style.display = 'none';
     var email = document.getElementById('auth-email').value;
     var password = document.getElementById('auth-password').value;
     firebase.auth().signInWithEmailAndPassword(email, password).catch(function () {
-      errorEl.textContent = 'Usuario o contraseña incorrectos.';
+      errorEl.textContent = 'Usuario o contrasena incorrectos.';
       errorEl.style.display = 'block';
     });
   });
@@ -129,7 +157,7 @@
 <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
   <div>
     <h1>Dashboard ROI - Pauta Meta Ads x Kommo</h1>
-    <p class="subtitle">El Gran Emporio de la Chapa &middot; Pipeline "Embudo de ventas" &middot; Filtrable por fecha de creación del lead</p>
+    <p class="subtitle">MERIMAT DEL SUR &middot; El Gran Emporio de la Chapa &middot; Pipeline "Embudo de ventas" &middot; Filtrable por fecha de creación del lead</p>
   </div>
   <div style="text-align:right;">
     <button id="refreshNowBtn" style="background:var(--blue); border:none; color:#fff; border-radius:6px; padding:8px 16px; font-size:13px; cursor:pointer; font-weight:600;">Actualizar ahora</button>
