@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Admin - Dashboards ROI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+:root{
+  --bg:#0f1420; --card:#161d2e; --card2:#1c2438; --border:#2a3550;
+  --text:#e8ecf5; --text2:#9aa5bf; --text3:#6b7594;
+  --purple:#8b7ce8; --green:#1ba97a; --red:#e34948;
+}
+*{box-sizing:border-box;}
+body{margin:0; padding:32px; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}
+h1{font-size:22px; font-weight:600; margin:0 0 4px;}
+.subtitle{color:var(--text2); font-size:13px; margin:0 0 28px;}
+h2{font-size:16px; font-weight:600; margin:32px 0 14px;}
+.card{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:16px;}
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th{text-align:left; color:var(--text3); font-weight:600; font-size:11px; text-transform:uppercase; padding:8px 10px; border-bottom:1px solid var(--border);}
+td{padding:10px; border-bottom:1px solid var(--border); vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+.pill{display:inline-block; background:var(--card2); border:1px solid var(--border); border-radius:20px; padding:3px 10px; font-size:12px; margin:2px 4px 2px 0;}
+.chk-label{display:inline-flex; align-items:center; gap:5px; background:var(--card2); border:1px solid var(--border); border-radius:6px; padding:4px 8px; margin:2px 4px 2px 0; font-size:12px; cursor:pointer;}
+input[type=text],input[type=email]{background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 10px; border-radius:6px; font-size:13px;}
+button{background:var(--purple); color:#fff; border:none; border-radius:6px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;}
+button.secondary{background:var(--card2); border:1px solid var(--border);}
+button:disabled{opacity:0.5; cursor:default;}
+.row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+.msg{font-size:12px; margin-top:6px;}
+.msg.ok{color:var(--green);} .msg.err{color:var(--red);}
+#app{display:none;}
+#auth-gate{position:fixed; inset:0; z-index:99999; background:#0f1420; display:flex; align-items:center; justify-content:center;}
+#auth-form{background:#161d2e; padding:32px; border-radius:12px; width:300px; border:1px solid #2a3550;}
+#auth-form input{width:100%; padding:10px; margin-bottom:10px; border-radius:6px; border:1px solid #2a3550; background:#0f1420; color:#e8ecf5; box-sizing:border-box;}
+#auth-form button{width:100%; padding:10px;}
+#denied{display:none; padding:40px; text-align:center; color:var(--text2);}
+</style>
+</head>
+<body>
+
+<div id="auth-gate" style="display:flex;">
+  <form id="auth-form">
+    <h2 style="margin:0 0 6px;">Admin Dashboards ROI</h2>
+    <p style="margin:0 0 18px; font-size:13px; color:#9aa5bf;">Solo administradores</p>
+    <input id="auth-email" type="email" placeholder="Email" required autocomplete="username">
+    <input id="auth-password" type="password" placeholder="Contrasena" required autocomplete="current-password">
+    <button type="submit">Entrar</button>
+    <p id="auth-error" class="msg err" style="display:none;"></p>
+  </form>
+</div>
+
+<div id="denied">
+  <h1>Acceso denegado</h1>
+  <p>Tu usuario no tiene permisos de administrador.</p>
+  <button class="secondary" onclick="firebase.auth().signOut()">Cerrar sesion</button>
+</div>
+
+<div id="app">
+  <div class="row" style="justify-content:space-between;">
+    <div>
+      <h1>Panel de administracion</h1>
+      <p class="subtitle">Empresas y permisos de acceso a los dashboards ROI</p>
+    </div>
+    <button class="secondary" onclick="firebase.auth().signOut()">Cerrar sesion</button>
+  </div>
+
+  <h2>Empresas</h2>
+  <div class="card">
+    <table id="empresas-table"><thead><tr><th>Nombre</th><th>Razon social</th><th>ID</th></tr></thead><tbody></tbody></table>
+    <div class="row" style="margin-top:16px;">
+      <input id="new-empresa-nombre" type="text" placeholder="Nombre (ej: TECNO CONSTRUCCIONES)">
+      <input id="new-empresa-razon" type="text" placeholder="Razon social (opcional)">
+      <button onclick="crearEmpresa()">Agregar empresa</button>
+    </div>
+    <p id="empresa-msg" class="msg"></p>
+  </div>
+
+  <h2>Usuarios y accesos al dashboard ROI</h2>
+  <div class="card">
+    <table id="users-table"><thead><tr><th>Usuario</th><th>Rol</th><th>Acceso a dashboards ROI</th><th></th></tr></thead><tbody></tbody></table>
+    <p style="font-size:12px; color:var(--text3); margin-top:14px;">Para dar acceso a alguien que todavia no tiene cuenta, primero hay que crearle un usuario en Firebase Authentication (consola de Firebase). Una vez que esa persona inicia sesion por primera vez en el planificador o en este panel, va a aparecer aca.</p>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script>
+var firebaseConfig = {
+  apiKey: "AIzaSyB-2h3TAs7KvTpNeOyivXjuSoGWd1-w0IM",
+  authDomain: "planificador-reels.firebaseapp.com",
+  projectId: "planificador-reels",
+  storageBucket: "planificador-reels.firebasestorage.app",
+  messagingSenderId: "219720801828",
+  appId: "1:219720801828:web:875a0f1d8001194c41c2b1"
+};
+firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore();
+
+var gate = document.getElementById("auth-gate");
+var deniedEl = document.getElementById("denied");
+var appEl = document.getElementById("app");
+var form = document.getElementById("auth-form");
+var errorEl = document.getElementById("auth-error");
+
+var empresasCache = [];
+
+firebase.auth().onAuthStateChanged(function (user) {
+  gate.style.display = "none";
+  deniedEl.style.display = "none";
+  appEl.style.display = "none";
+  if (!user) {
+    gate.style.display = "flex";
+    return;
+  }
+  db.collection("users").doc(user.uid).get().then(function (snap) {
+    var data = snap.exists ? snap.data() : null;
+    if (!data || data.role !== "admin") {
+      deniedEl.style.display = "block";
+      return;
+    }
+    appEl.style.display = "block";
+    cargarTodo();
+  }).catch(function () {
+    gate.style.display = "flex";
+    errorEl.textContent = "No se pudo verificar tu usuario.";
+    errorEl.style.display = "block";
+    firebase.auth().signOut();
+  });
+});
+
+form.addEventListener("submit", function (e) {
+  e.preventDefault();
+  errorEl.style.display = "none";
+  var email = document.getElementById("auth-email").value;
+  var password = document.getElementById("auth-password").value;
+  firebase.auth().signInWithEmailAndPassword(email, password).catch(function () {
+    errorEl.textContent = "Usuario o contrasena incorrectos.";
+    errorEl.style.display = "block";
+  });
+});
+
+function cargarTodo() {
+  cargarEmpresas().then(cargarUsuarios);
+}
+
+function cargarEmpresas() {
+  return db.collection("empresas").get().then(function (qs) {
+    empresasCache = [];
+    qs.forEach(function (doc) {
+      empresasCache.push(Object.assign({id: doc.id}, doc.data()));
+    });
+    empresasCache.sort(function (a, b) { return (a.nombre || "").localeCompare(b.nombre || ""); });
+    renderEmpresas();
+  });
+}
+
+function renderEmpresas() {
+  var tbody = document.querySelector("#empresas-table tbody");
+  tbody.innerHTML = "";
+  empresasCache.forEach(function (emp) {
+    var tr = document.createElement("tr");
+    var tdNombre = document.createElement("td");
+    tdNombre.textContent = emp.nombre || "(sin nombre)";
+    var tdRazon = document.createElement("td");
+    tdRazon.textContent = emp.razonSocial || "-";
+    var tdId = document.createElement("td");
+    tdId.innerHTML = "<span class=\"pill\">" + emp.id + "</span>";
+    tr.appendChild(tdNombre); tr.appendChild(tdRazon); tr.appendChild(tdId);
+    tbody.appendChild(tr);
+  });
+}
+
+function crearEmpresa() {
+  var nombreEl = document.getElementById("new-empresa-nombre");
+  var razonEl = document.getElementById("new-empresa-razon");
+  var msgEl = document.getElementById("empresa-msg");
+  var nombre = nombreEl.value.trim();
+  if (!nombre) { msgEl.className = "msg err"; msgEl.textContent = "Poné un nombre."; return; }
+  var payload = { nombre: nombre, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+  var razon = razonEl.value.trim();
+  if (razon) payload.razonSocial = razon;
+  db.collection("empresas").add(payload).then(function () {
+    nombreEl.value = ""; razonEl.value = "";
+    msgEl.className = "msg ok"; msgEl.textContent = "Empresa agregada.";
+    cargarEmpresas();
+  }).catch(function (err) {
+    msgEl.className = "msg err"; msgEl.textContent = "Error: " + err.message;
+  });
+}
+
+function cargarUsuarios() {
+  return db.collection("users").get().then(function (qs) {
+    var tbody = document.querySelector("#users-table tbody");
+    tbody.innerHTML = "";
+    qs.forEach(function (doc) {
+      var u = Object.assign({uid: doc.id}, doc.data());
+      tbody.appendChild(renderUserRow(u));
+    });
+  });
+}
+
+function renderUserRow(u) {
+  var tr = document.createElement("tr");
+
+  var tdUser = document.createElement("td");
+  tdUser.innerHTML = "<strong>" + (u.nombre || "(sin nombre)") + "</strong><br><span style=\"color:var(--text3); font-size:12px;\">" + (u.email || u.uid) + "</span>";
+  tr.appendChild(tdUser);
+
+  var tdRole = document.createElement("td");
+  tdRole.innerHTML = "<span class=\"pill\">" + (u.role || "-") + "</span>";
+  tr.appendChild(tdRole);
+
+  var tdAccess = document.createElement("td");
+  var current = u.roiEmpresas || [];
+  if (u.role === "admin") {
+    tdAccess.innerHTML = "<span style=\"color:var(--text3); font-size:12px;\">Admin: acceso a todo</span>";
+  } else {
+    empresasCache.forEach(function (emp) {
+      var label = document.createElement("label");
+      label.className = "chk-label";
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.value = emp.id;
+      cb.checked = current.indexOf(emp.id) !== -1;
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(emp.nombre || emp.id));
+      tdAccess.appendChild(label);
+    });
+    if (empresasCache.length === 0) {
+      tdAccess.innerHTML = "<span style=\"color:var(--text3); font-size:12px;\">No hay empresas cargadas todavia</span>";
+    }
+  }
+  tr.appendChild(tdAccess);
+
+  var tdSave = document.createElement("td");
+  if (u.role !== "admin") {
+    var saveBtn = document.createElement("button");
+    saveBtn.textContent = "Guardar";
+    saveBtn.onclick = function () {
+      var checked = Array.prototype.slice.call(tdAccess.querySelectorAll("input[type=checkbox]:checked")).map(function (cb) { return cb.value; });
+      saveBtn.disabled = true;
+      db.collection("users").doc(u.uid).update({ roiEmpresas: checked }).then(function () {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Guardado";
+        setTimeout(function () { saveBtn.textContent = "Guardar"; }, 1500);
+      }).catch(function (err) {
+        saveBtn.disabled = false;
+        alert("Error: " + err.message);
+      });
+    };
+    tdSave.appendChild(saveBtn);
+  }
+  tr.appendChild(tdSave);
+
+  return tr;
+}
+</script>
+</body>
+</html>
